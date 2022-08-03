@@ -1,1 +1,6 @@
-* Test
+* allsvenskanBet
+
+This is a bot for Discord that handles server-local bets regarding the matches in Swedish football league [[https://en.wikipedia.org/wiki/Allsvenskan][Allsvenskan]].
+
+** Commands
+...
