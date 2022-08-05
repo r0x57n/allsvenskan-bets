@@ -2,31 +2,33 @@ package main
 
 import (
 	"flag"
-	"cron"
+	"github.com/robfig/cron/v3"
+	"fmt"
 	"strings"
 	"strconv"
-	"os"
 	"log"
+	"time"
+	"os"
 	"os/signal"
 	"github.com/bwmarrin/discordgo"
-	"time"
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-/* =======
-    Paths
-   =======*/
+/*
+ Paths
+*/
 
 const (
 	SVFF_DB = "../svffscraper/foo.db"
 	BETS_DB = "./bets.db"
+	DB_TYPE = "sqlite3"
 )
 
 
-/* ================
-    Bot parameters
-   ================ */
+/*
+ Bot parameters
+*/
 
 var (
 	GUILD_ID  = flag.String("guild", "", "Test guild ID")
@@ -39,9 +41,24 @@ const (
 )
 
 
-/* =======================
-    Commands and handlers
-   ======================= */
+/*
+ Types
+*/
+
+type match struct {
+	id int
+	homeTeam string
+	awayTeam string
+	date string
+	scoreHome int
+	scoreAway int
+	finished int
+}
+
+
+/*
+ Commands and handlers
+*/
 
 var (
 	COMMANDS = []discordgo.ApplicationCommand {
@@ -125,9 +142,9 @@ var (
 	}
 )
 
-/* ===================
-    Content functions
-   =================== */
+/*
+ Content functions
+*/
 
 func getHelpContent() string {
 	help := "Denna bot är till för att kunna vadslå om hur olika Allsvenska matcher kommer sluta.\n" +
@@ -135,62 +152,63 @@ func getHelpContent() string {
 	        "**Kommandon**\n"
 
 	for _, elem := range COMMANDS {
-		help = help + "/" + elem.Name + " - " + elem.Description + "\n"
+		help = help + fmt.Sprintf("/%v - %v\n", elem.Name, elem.Description)
 	}
 
 	return help
 }
 
 func getRoundMatchesAsOptions() []discordgo.SelectMenuOption {
-	db, err := sql.Open("sqlite3", SVFF_DB)
+	db, err := sql.Open(DB_TYPE, SVFF_DB)
 	defer db.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err) }
 
 	today := time.Now().Format("2006-01-02")
 	tenFromToday := time.Now().Add(time.Hour * 24 * 10).Format("2006-01-02")
 
-	rows, _ := db.Query("SELECT * FROM matches WHERE date BETWEEN '" + today + "' and '" + tenFromToday + "'")
+	rows, _ := db.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE date BETWEEN ? and ?", today, tenFromToday)
 	defer rows.Close()
+
+	var matches []match
+	for rows.Next() {
+		var m match
+		if err := rows.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished); err != nil { log.Panic(err) }
+		matches = append(matches, m)
+	}
 
 	response := []discordgo.SelectMenuOption{}
 
-	var (
-		id int
-		home string
-		away string
-		date string
-	)
-
-	for rows.Next() {
-		rows.Scan(&id, &home, &away, &date)
+	if len(matches) == 0 {
 		response = append(response, discordgo.SelectMenuOption{
-			Label: home + " vs " + away,
-			Value: strconv.Itoa(id),
-			Description: date,
+			Label: "Inga matcher tillgängliga kommande tio dagar.",
+			Value: "",
+			Description: "",
 		})
+	} else {
+		for _, m := range matches {
+			response = append(response, discordgo.SelectMenuOption{
+				Label: fmt.Sprintf("%v vs %v", m.homeTeam, m.awayTeam),
+				Value: strconv.Itoa(m.id),
+				Description: m.date,
+			})
+		}
 	}
 
 	return response
 }
 
 func getUserBets(i *discordgo.InteractionCreate) string {
-	svffDB, err := sql.Open("sqlite3", SVFF_DB)
+	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
 	defer svffDB.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err) }
 
-	betsDB, err := sql.Open("sqlite3", BETS_DB)
+	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
 	defer betsDB.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err) }
 
 	uID := i.Interaction.Member.User.ID
 
-	bets, _ := betsDB.Query("SELECT * FROM bets WHERE uid=" + uID)
+	bets, _ := betsDB.Query("SELECT * FROM bets WHERE uid=?", uID)
 	defer bets.Close()
 
 	var (
@@ -205,7 +223,7 @@ func getUserBets(i *discordgo.InteractionCreate) string {
 
 	for bets.Next() {
 		bets.Scan(&id, &uid, &matchID, &homeScore, &awayScore)
-		match := svffDB.QueryRow("SELECT home_team, away_team, date FROM matches WHERE id=" + strconv.Itoa(matchID))
+		match := svffDB.QueryRow("SELECT homeTeam, awayTeam, date FROM matches WHERE id=?", matchID)
 
 		var (
 			homeTeam string
@@ -215,7 +233,7 @@ func getUserBets(i *discordgo.InteractionCreate) string {
 
 		match.Scan(&homeTeam, &awayTeam, &date)
 
-		userBets = userBets + homeTeam + " vs " + awayTeam + " @ " + date + ", ditt vad är: " + strconv.Itoa(homeScore) + " - " + strconv.Itoa(awayScore) + "\n"
+		userBets = userBets + fmt.Sprintf("%v vs %v @ %v, ditt vad är: %v - %v\n", homeTeam, awayTeam, date, homeScore, awayScore)
 	}
 
 	if userBets == "" {
@@ -226,30 +244,23 @@ func getUserBets(i *discordgo.InteractionCreate) string {
 }
 
 func buildMatchBetResponse(i *discordgo.InteractionCreate) *discordgo.InteractionResponse {
-	svffDB, err := sql.Open("sqlite3", SVFF_DB)
+	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
 	defer svffDB.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err) }
 
-	betsDB, err := sql.Open("sqlite3", BETS_DB)
+	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
 	defer betsDB.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err) }
 
 	matchID, _ := strconv.Atoi(i.MessageComponentData().Values[0])
 	uID := i.Interaction.Member.User.ID
 
-	matchInfo := svffDB.QueryRow("SELECT * FROM matches WHERE id=" + strconv.Itoa(matchID))
-	earlierBet, _ := betsDB.Query("SELECT homeScore, awayScore FROM bets WHERE (uid, matchid) IS (" + uID + ", " + strconv.Itoa(matchID) + ")")
+	matchInfo := svffDB.QueryRow("SELECT id, homeTeam, awayTeam, date FROM matches WHERE id=?", matchID)
+	earlierBet, _ := betsDB.Query("SELECT homeScore, awayScore FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID)
 	defer earlierBet.Close()
 
 	var (
-		id int
-		home string
-		away string
-		date string
+		m match
 		defHome int = -1
 		defAway int = -1
 	)
@@ -258,12 +269,12 @@ func buildMatchBetResponse(i *discordgo.InteractionCreate) *discordgo.Interactio
 		earlierBet.Scan(&defHome, &defAway)
 	}
 
-	matchInfo.Scan(&id, &home, &away, &date)
+	if err := matchInfo.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date); err != nil { log.Panic(err) }
 
 	response := &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: home + " (h) vs " + away + " (b) @ " + date + "\n\n**Poäng** *(hemmalag överst)*",
+			Content: fmt.Sprintf("%v (h) vs %v (b) @ %v \n\n**Poäng** *(hemmalag överst)*", m.homeTeam, m.awayTeam, m.date),
 			Flags: 1 << 6, // Ephemeral
 			Components: []discordgo.MessageComponent {
 				discordgo.ActionsRow {
@@ -272,7 +283,7 @@ func buildMatchBetResponse(i *discordgo.InteractionCreate) *discordgo.Interactio
 							// Select menu, as other components, must have a customID, so we set it to this value.
 							CustomID:    "scoreHome",
 							Placeholder: "Hemmalag",
-							Options: getScoreMenuOptions(id, defHome),
+							Options: getScoreMenuOptions(m.id, defHome),
 						},
 					},
 				},
@@ -282,7 +293,7 @@ func buildMatchBetResponse(i *discordgo.InteractionCreate) *discordgo.Interactio
 							// Select menu, as other components, must have a customID, so we set it to this value.
 							CustomID:    "scoreAway",
 							Placeholder: "Bortalag",
-							Options: getScoreMenuOptions(id, defAway),
+							Options: getScoreMenuOptions(m.id, defAway),
 						},
 					},
 				},
@@ -300,11 +311,9 @@ const (
 )
 
 func setScore(i *discordgo.InteractionCreate, where Test) *discordgo.InteractionResponse {
-	db, err := sql.Open("sqlite3", BETS_DB)
+	db, err := sql.Open(DB_TYPE, BETS_DB)
 	defer db.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err) }
 
 	data := i.MessageComponentData().Values[0]
 	var splitted = strings.Split(data, "_")
@@ -315,40 +324,29 @@ func setScore(i *discordgo.InteractionCreate, where Test) *discordgo.Interaction
 		away = "0"
 	)
 
-	if where == Home {
-		home = splitted[1]
-	} else {
-		away = splitted[1]
+	switch where {
+		case Home: home = splitted[1]
+		case Away: away = splitted[1]
+		default: log.Panic("This shouldn't happen...")
 	}
 
-	rows, err := db.Query("SELECT * FROM bets WHERE (uid, matchid) IS (" + uID + ", " + matchID + ")")
+	rows, err := db.Query("SELECT * FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID)
 	defer rows.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err) }
 
-	if rows.Next() { // prior bet
+	// Prior bet
+	if rows.Next() {
 		if where == Home {
 			rows.Close()
-			_, err = db.Exec("UPDATE bets SET homeScore = " + home + " WHERE (uid, matchid) IS (" + uID + ", " + matchID + ")")
-			if err != nil {
-				log.Fatal(err)
-			}
+			if _, err := db.Exec("UPDATE bets SET homeScore=? WHERE (uid, matchid) IS (?, ?)", home, uID, matchID); err != nil { log.Panic(err) }
 		} else {
 			rows.Close()
-			_, err = db.Exec("UPDATE bets SET awayScore = " + away + " WHERE (uid, matchid) IS (" + uID + ", " + matchID + ")")
-			if err != nil {
-				log.Fatal(err)
-			}
+			if _, err := db.Exec("UPDATE bets SET awayScore=? WHERE (uid, matchid) IS (?, ?)", away, uID, matchID); err != nil { log.Panic(err) }
 		}
-	} else { // no prior bet
+	// No prior bet
+	} else {
 		rows.Close()
-		_, err = db.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore) VALUES " +
-											"('" + uID  + "', '" + matchID  + "', " +
-											" '" + home + "', '" + away     + "');")
-		if err != nil {
-			log.Fatal(err)
-		}
+		if _, err := db.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore) VALUES (?, ?, ?, ?)", uID, matchID, home, away); err != nil { log.Panic(err) }
 	}
 
 	return &discordgo.InteractionResponse{
@@ -357,9 +355,9 @@ func setScore(i *discordgo.InteractionCreate, where Test) *discordgo.Interaction
 }
 
 
-/* ===================
-    Helper functions
-   =================== */
+/*
+ Helper functions
+*/
 
 func getScoreMenuOptions(matchID int, defScore int) []discordgo.SelectMenuOption {
 	scores := []discordgo.SelectMenuOption {}
@@ -368,13 +366,13 @@ func getScoreMenuOptions(matchID int, defScore int) []discordgo.SelectMenuOption
 		if defScore == i {
 			scores = append(scores, discordgo.SelectMenuOption{
 				Label: strconv.Itoa(i),
-				Value: strconv.Itoa(matchID) + "_" + strconv.Itoa(i),
+				Value: fmt.Sprintf("%v_%v", matchID, i),
 				Default: true,
 			})
 		} else {
 			scores = append(scores, discordgo.SelectMenuOption{
 				Label: strconv.Itoa(i),
-				Value: strconv.Itoa(matchID) + "_" + strconv.Itoa(i),
+				Value: fmt.Sprintf("%v_%v", matchID, i),
 				Default: false,
 			})
 		}
@@ -384,23 +382,43 @@ func getScoreMenuOptions(matchID int, defScore int) []discordgo.SelectMenuOption
 }
 
 
-/* ======
-    Main
-   ======*/
+/*
+ Interval functions
+*/
 
-func main() {
-	var s *discordgo.Session
-	var err error
+func handleTodaysBets() {
+	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
+	defer svffDB.Close()
+	if err != nil { log.Fatal(err) }
 
-	s, err = discordgo.New("Bot " + *BOT_TOKEN)
+	today := time.Now().Format("2006-01-12")
+
+	log.Printf("Handling bets for %v...", today)
+
+	matches, err := svffDB.Query("SELECT id FROM matches WHERE date=?", today)
+	if err != nil { log.Panic(err) }
+
+	var (
+
+	)
+
+	for matches.Next() {
+
+	}
+}
+
+/*
+  Initialization
+*/
+
+func initializeBot() *discordgo.Session {
+	// Login bot
+	s, err := discordgo.New("Bot " + *BOT_TOKEN)
 	if err != nil {
-		log.Printf("Invalid bot parameters: %v", err)
+		log.Fatalf("Invalid bot parameters: %v", err)
 	}
 
-	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
-	})
-
+	// Initialize commands
 	cmdIDs := make(map[string]string, len(COMMANDS))
 
 	for _, cmd := range COMMANDS {
@@ -412,28 +430,45 @@ func main() {
 		cmdIDs[rcmd.ID] = rcmd.Name
 	}
 
-	// Components are part of interactions, so we register InteractionCreate handler
 	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		switch i.Type {
 			case discordgo.InteractionApplicationCommand:
-				if h, ok := COMMAND_HANDLERS[i.ApplicationCommandData().Name]; ok {
-					h(s, i)
-				}
+				if h, ok := COMMAND_HANDLERS[i.ApplicationCommandData().Name]; ok { h(s, i) }
 			case discordgo.InteractionMessageComponent:
-
-				if h, ok := COMPONENT_HANDLERS[i.MessageComponentData().CustomID]; ok {
-					h(s, i)
-				}
+				if h, ok := COMPONENT_HANDLERS[i.MessageComponentData().CustomID]; ok { h(s, i) }
 		}
 	})
 
-	log.Print("Starting...")
+	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
+		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+	})
+
+	// Start bot
 	err = s.Open()
 	if err != nil {
 		log.Fatalf("Cannot open the session: %v", err)
 	}
+
+	return s
+}
+
+/*
+ Main
+*/
+
+func main() {
+	log.Print("Starting...")
+
+	// Initialize and start the bot
+	s := initializeBot()
 	defer s.Close()
 
+	// Check the bets on a timed interval
+	c := cron.New()
+	c.AddFunc("@every 5s", func() { log.Print("Every 30s") })
+	//c.Start()
+
+	// Wait for stop signal
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 	<-stop
