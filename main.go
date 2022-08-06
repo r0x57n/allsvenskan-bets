@@ -25,6 +25,7 @@ const (
 	BETS_DB = "./bets.db"
 	DB_TYPE = "sqlite3"
 	TIME_LAYOUT = time.RFC3339
+    VERSION = "0.1.0" // major.minor.patch
 )
 
 
@@ -36,7 +37,7 @@ var (
 	GUILD_ID  = flag.String("guild", "", "Test guild ID")
 	BOT_TOKEN = flag.String("token", "MTAwMDgzNDQ3MzIyODc3OTU4Mg.GMTTc2.8vE1wGIbRP41q6G_md3FhXfHAISDZww2Ja0aTs", "Bot access token")
 	APP_ID    = flag.String("app", "1000834473228779582", "Application ID")
-    REFRESH   = flag.Bool("refresh", false, "Refresh commands on start")
+    RR        = flag.Bool("RR", false, "Remove commands and refresh") // Be careful with this, max of 200 commands can be added in a day, removing and adding counts...
 )
 
 const (
@@ -81,6 +82,11 @@ const (
 func helpCommand(s *discordgo.Session, i *discordgo.InteractionCreate, COMMANDS *[]discordgo.ApplicationCommand) {
 	help := "Denna bot är till för att kunna slå vad om hur olika Allsvenska matcher kommer sluta.\n" +
 		    "\n" +
+            "Du kan */vadslå* över en match. Då slår du vad om hur du tror en match kommer sluta poängmässigt. Har du rätt vinner du poäng som kan användas till antingen **skryträtt**, eller för att */utmana* andra användare.\n" +
+            "När du utmanar en annan användare väljer du en utmaning och hur många poäng du satsar på ditt utfall. Vinnaren tar alla poängen.\n" +
+            "\n" +
+            "Alla vadslagningar kollas runt midnatt och det är först då poängen delas ut.\n" +
+            "\n" +
 	        "**Kommandon**\n"
 
 	for _, elem := range *COMMANDS {
@@ -89,13 +95,7 @@ func helpCommand(s *discordgo.Session, i *discordgo.InteractionCreate, COMMANDS 
 		}
 	}
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: help,
-		},
-	}); err != nil { log.Panic(err) }
+    msgInteractionResponse(s, i, help)
 }
 
 // Command: slåvad
@@ -135,35 +135,24 @@ func betCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		}
 	}
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: "Kommande omgångens matcher:",
-			Components: []discordgo.MessageComponent {
-				discordgo.ActionsRow {
-					Components: []discordgo.MessageComponent {
-						discordgo.SelectMenu {
-							Placeholder: "Välj en match",
-							CustomID: "selectMatch",
-							Options: response,
-						},
-					},
-				},
-			},
-		},
-	}); err != nil { log.Panic(err) }
+    components := []discordgo.MessageComponent {
+        discordgo.ActionsRow {
+            Components: []discordgo.MessageComponent {
+                discordgo.SelectMenu {
+                    Placeholder: "Välj en match",
+                    CustomID: "selectMatch",
+                    Options: response,
+                },
+            },
+        },
+    }
+
+    compMsgInteractionResponse(s, i, "Kommande omgångens matcher:", components)
 }
 
 // Command: utmana
 func challengeCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: "Utmana",
-		},
-	}); err != nil { log.Panic(err) }
+    msgInteractionResponse(s, i, "Utmana")
 }
 
 // Command: kommande
@@ -202,13 +191,7 @@ func upcomingCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		userBets = "Inga vadslagningar ännu!"
 	}
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: userBets,
-		},
-	}); err != nil { log.Panic(err) }
+    msgInteractionResponse(s, i, userBets)
 }
 
 // Command: tidigare
@@ -254,13 +237,7 @@ func earlierCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		userBets = "Användaren har valt att dölja sina vadslagningar."
 	}
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: userBets,
-		},
-	}); err != nil { log.Panic(err) }
+    msgInteractionResponse(s, i, userBets)
 }
 
 // Command: poäng
@@ -301,38 +278,20 @@ func pointsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	str += fmt.Sprintf("Dina poäng i år: %v", uPoints)
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: str,
-		},
-	}); err != nil { log.Panic(err) }
+    msgInteractionResponse(s, i, str)
 }
 
 // Command: inställningar
 func settingsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: "...",
-		},
-	}); err != nil { log.Panic(err) }
+    msgInteractionResponse(s, i, "...")
 }
 
 // Command: sammanfatta
 func summaryCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if isOwner(i) {
-		if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData {
-				Flags: 1 << 6, // Ephemeral
-				Content: "Sammmanfatta",
-			},
-		}); err != nil { log.Panic(err) }
+        msgInteractionResponse(s, i, "Sammanfatta")
 	} else {
-		if err := s.InteractionRespond(i.Interaction, notOwnerResponse()); err != nil { log.Panic(err) }
+        msgInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando.")
 	}
 }
 
@@ -341,30 +300,12 @@ func refreshCommand(s *discordgo.Session, i *discordgo.InteractionCreate, COMMAN
 	if isOwner(i) {
         log.Println("Refreshing commands...")
 
-		if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-            Data: &discordgo.InteractionResponseData {
-				Flags: 1 << 6, // Ephemeral
-				Content: "Refreshing commands...",
-            },
-        }); err != nil { log.Panic(err) }
+        msgInteractionResponse(s, i, "Refreshing commands...")
 
         cID := ""
 
         if len(i.Interaction.ApplicationCommandData().Options) == 1 {
             cID = fmt.Sprintf("%v", i.Interaction.ApplicationCommandData().Options[0].Value)
-        }
-
-        cmds, _ := s.ApplicationCommands(*APP_ID, *GUILD_ID)
-
-        for _, cmd := range cmds {
-            if cmd.Name == cID {
-                log.Printf("Deleting: %v", cmd.Name)
-                s.ApplicationCommandDelete(*APP_ID, *GUILD_ID, cmd.ID)
-            } else if cID == "" {
-                log.Printf("Deleting: %v", cmd.Name)
-                s.ApplicationCommandDelete(*APP_ID, *GUILD_ID, cmd.ID)
-            }
         }
 
         // Initialize commands
@@ -394,8 +335,16 @@ func refreshCommand(s *discordgo.Session, i *discordgo.InteractionCreate, COMMAN
 
         log.Println("Finished refreshing!")
 	} else {
-		if err := s.InteractionRespond(i.Interaction, notOwnerResponse()); err != nil { log.Panic(err) }
+        msgInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando...")
 	}
+}
+
+func aboutCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+    str := "Jag är en bot gjort i Go med hjälp av discordgo paketet. Min källkod finns på https://github.com/r0x57n/allsvenskanBets." +
+           "\n" +
+           "Den version jag kör är: " + VERSION
+
+    msgInteractionResponse(s, i, str)
 }
 
 /*
@@ -429,36 +378,31 @@ func matchBetComponent(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 
 	if err := matchInfo.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date); err != nil { log.Panic(err) }
+	msg := fmt.Sprintf("%v (h) vs %v (b) @ %v \n\n**Poäng** *(hemmalag överst)*", m.homeTeam, m.awayTeam, m.date)
+    components := []discordgo.MessageComponent {
+        discordgo.ActionsRow {
+            Components: []discordgo.MessageComponent {
+                discordgo.SelectMenu {
+                    // Select menu, as other components, must have a customID, so we set it to this value.
+                    CustomID:    "scoreHome",
+                    Placeholder: "Hemmalag",
+                    Options: getScoreMenuOptions(m.id, defHome),
+                },
+            },
+        },
+        discordgo.ActionsRow {
+            Components: []discordgo.MessageComponent {
+                discordgo.SelectMenu {
+                    // Select menu, as other components, must have a customID, so we set it to this value.
+                    CustomID:    "scoreAway",
+                    Placeholder: "Bortalag",
+                    Options: getScoreMenuOptions(m.id, defAway),
+                },
+            },
+        },
+    }
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData {
-			Content: fmt.Sprintf("%v (h) vs %v (b) @ %v \n\n**Poäng** *(hemmalag överst)*", m.homeTeam, m.awayTeam, m.date),
-			Flags: 1 << 6, // Ephemeral
-			Components: []discordgo.MessageComponent {
-				discordgo.ActionsRow {
-					Components: []discordgo.MessageComponent {
-						discordgo.SelectMenu {
-							// Select menu, as other components, must have a customID, so we set it to this value.
-							CustomID:    "scoreHome",
-							Placeholder: "Hemmalag",
-							Options: getScoreMenuOptions(m.id, defHome),
-						},
-					},
-				},
-				discordgo.ActionsRow {
-					Components: []discordgo.MessageComponent {
-						discordgo.SelectMenu {
-							// Select menu, as other components, must have a customID, so we set it to this value.
-							CustomID:    "scoreAway",
-							Placeholder: "Bortalag",
-							Options: getScoreMenuOptions(m.id, defAway),
-						},
-					},
-				},
-			},
-		},
-	}); err != nil { log.Panic(err) }
+    compMsgInteractionResponse(s, i, msg, components)
 }
 
 func scoreComponent(s *discordgo.Session, i *discordgo.InteractionCreate, where location) {
@@ -556,14 +500,25 @@ func isOwner(i *discordgo.InteractionCreate) bool {
 	return false
 }
 
-func notOwnerResponse() *discordgo.InteractionResponse {
-	return &discordgo.InteractionResponse {
-        Type: discordgo.InteractionResponseChannelMessageWithSource,
-        Data: &discordgo.InteractionResponseData {
-            Flags: 1 << 6, // Ephemeral
-            Content: "Du har inte rättigheter att köra kommandot.",
+func msgInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) {
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData {
+			Flags: 1 << 6, // Ephemeral
+			Content: msg,
+		},
+	}); err != nil { log.Panic(err) }
+}
+
+func compMsgInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCreate, msg string, components []discordgo.MessageComponent) {
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData {
+			Content: msg,
+			Components: components,
+			Flags: 1 << 6, // Ephemeral
         },
-    }
+	}); err != nil { log.Panic(err) }
 }
 
 
@@ -697,11 +652,11 @@ func initializeBot() *discordgo.Session {
 			},
 			{
 				Name: "utmana",
-				Description: "Utmana en annan användare om en kommande match.",
+				Description: "Utmana en annan användare om en kommande match. Välj användare och vilket typ av utmaning, skicka för att fylla i mer detaljer.",
 				Options: []*discordgo.ApplicationCommandOption {
 					{
 						Type: discordgo.ApplicationCommandOptionUser,
-						Name: "namn",
+						Name: "användarnamn",
 						Description: "Användare att utmana.",
                         Required: true,
 					},
@@ -729,8 +684,9 @@ func initializeBot() *discordgo.Session {
 				Options: []*discordgo.ApplicationCommandOption {
 					{
 						Type: discordgo.ApplicationCommandOptionUser,
-						Name: "namn",
+						Name: "användare",
 						Description: "Användare att visa vadslagningar för.",
+                        Required: true,
 					},
 				},
 			},
@@ -758,6 +714,10 @@ func initializeBot() *discordgo.Session {
 					},
                 },
 			},
+			{
+				Name: "ommig",
+				Description: "Teknisk info om mig.",
+			},
 		}
 
 		COMMAND_HANDLERS = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -770,6 +730,7 @@ func initializeBot() *discordgo.Session {
 			"inställningar": func(s *discordgo.Session, i *discordgo.InteractionCreate) {   settingsCommand(s, i)           },
 			"sammanfatta": func(s *discordgo.Session, i *discordgo.InteractionCreate)   {   summaryCommand(s,i )            },
 			"refresh": func(s *discordgo.Session, i *discordgo.InteractionCreate)       {   refreshCommand(s, i, &COMMANDS) },
+			"ommig": func(s *discordgo.Session, i *discordgo.InteractionCreate)         {   aboutCommand(s, i)              },
 		}
 
 		COMPONENT_HANDLERS = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -792,7 +753,7 @@ func initializeBot() *discordgo.Session {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
 
-    if *REFRESH {
+    if *RR {
         cmds, _ := s.ApplicationCommands(*APP_ID, *GUILD_ID)
 
         for _, cmd := range cmds {
