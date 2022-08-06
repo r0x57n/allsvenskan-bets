@@ -18,6 +18,13 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
     challengee, err := s.User(fmt.Sprintf("%v", option.Value))
     if err != nil { log.Panic(err) }
 
+    // Check if user allows challenges
+    u := getUser(challengee.ID)
+    if u.interactable == 0 {
+        msgStdInteractionResponse(s, i, "Användaren tillåter inte utmaningar.")
+        return
+    }
+
     msg := fmt.Sprintf("Utmana användare %v om hur följande match kommer sluta.", challengee.Username)
 
     options := getRoundMatchesAsOptions(challengee.ID)
@@ -126,14 +133,14 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
-    msg := "Är du säker?\n"
-    msg += fmt.Sprintf("\nDu tror att %v vinner för %v poäng.", 1, 2)
+    msg := fmt.Sprintf("\nDu tror att %v vinner för %v poäng.\n\n", 1, 2)
+    msg += "Är du säker? En utmaning kan bara tas bort om den du utmanar accepterar.\n"
 
     components := []dg.MessageComponent {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.Button{
-                    Label: "Gört",
+                    Label: "Skicka utmaning",
                     Style: dg.PrimaryButton,
                     CustomID: "challAccept",
                 },
