@@ -3,7 +3,6 @@ package main
 import (
 	"math"
 	"flag"
-	"github.com/robfig/cron/v3"
 	"fmt"
 	"strings"
 	"strconv"
@@ -11,10 +10,12 @@ import (
 	"time"
 	"os"
 	"os/signal"
-	"github.com/bwmarrin/discordgo"
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/robfig/cron/v3"
+	"github.com/bwmarrin/discordgo"
 )
+
 
 /*
  Paths
@@ -74,6 +75,7 @@ const (
 	Away
 )
 
+
 /*
   Command functions
 */
@@ -95,64 +97,55 @@ func helpCommand(s *discordgo.Session, i *discordgo.InteractionCreate, COMMANDS 
 		}
 	}
 
-    msgInteractionResponse(s, i, help)
+    msgStdInteractionResponse(s, i, help)
 }
 
 // Command: slåvad
 func betCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	db, err := sql.Open(DB_TYPE, SVFF_DB)
-	defer db.Close()
-	if err != nil { log.Fatal(err) }
-
-	today := time.Now().Format("2006-01-02")
-	tenFromToday := time.Now().AddDate(0, 0, 10).Format("2006-01-02")
-
-	rows, _ := db.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE date BETWEEN ? and ?", today, tenFromToday)
-	defer rows.Close()
-
-	var matches []match
-	for rows.Next() {
-		var m match
-		if err := rows.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished); err != nil { log.Panic(err) }
-		matches = append(matches, m)
-	}
-
-	response := []discordgo.SelectMenuOption{}
-
-	if len(matches) == 0 {
-		response = append(response, discordgo.SelectMenuOption{
-			Label: "Inga matcher tillgängliga kommande tio dagar.",
-			Value: "",
-			Description: "",
-		})
-	} else {
-		for _, m := range matches {
-			response = append(response, discordgo.SelectMenuOption{
-				Label: fmt.Sprintf("%v vs %v", m.homeTeam, m.awayTeam),
-				Value: strconv.Itoa(m.id),
-				Description: m.date,
-			})
-		}
-	}
+	options := getRoundMatchesAsOptions()
 
     components := []discordgo.MessageComponent {
         discordgo.ActionsRow {
             Components: []discordgo.MessageComponent {
                 discordgo.SelectMenu {
                     Placeholder: "Välj en match",
-                    CustomID: "selectMatch",
-                    Options: response,
+                    CustomID: "betOnSelected", // component handler
+                    Options: *options,
                 },
             },
         },
     }
 
-    compMsgInteractionResponse(s, i, "Kommande omgångens matcher:", components)
+    compInteractionResponse(s, i, discordgo.InteractionResponseChannelMessageWithSource, "Kommande omgångens matcher:", components)
 }
 
 // Command: utmana
 func challengeCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-    msgInteractionResponse(s, i, "Utmana")
+    if len(i.Interaction.ApplicationCommandData().Options) != 2 {
+        log.Panic("Not enough argumenst given...")
+    }
+
+    option := i.Interaction.ApplicationCommandData().Options[0]
+    challengee, err := s.User(fmt.Sprintf("%v", option.Value))
+    if err != nil { log.Panic(err) }
+
+    msg := fmt.Sprintf("Utmana användare %v om hur följande match kommer sluta.", challengee.Username)
+
+    options := getRoundMatchesAsOptions(challengee.ID)
+
+    components := []discordgo.MessageComponent {
+        discordgo.ActionsRow {
+            Components: []discordgo.MessageComponent {
+                discordgo.SelectMenu {
+                    Placeholder: "Vilken match vill du utmana om?",
+                    CustomID: "challOnSelected",
+                    Options: *options,
+                },
+            },
+        },
+    }
+
+    compInteractionResponse(s, i, discordgo.InteractionResponseChannelMessageWithSource, msg, components)
 }
 
 // Command: kommande
@@ -191,7 +184,7 @@ func upcomingCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		userBets = "Inga vadslagningar ännu!"
 	}
 
-    msgInteractionResponse(s, i, userBets)
+    msgStdInteractionResponse(s, i, userBets)
 }
 
 // Command: tidigare
@@ -237,7 +230,7 @@ func earlierCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		userBets = "Användaren har valt att dölja sina vadslagningar."
 	}
 
-    msgInteractionResponse(s, i, userBets)
+    msgStdInteractionResponse(s, i, userBets)
 }
 
 // Command: poäng
@@ -278,20 +271,20 @@ func pointsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	str += fmt.Sprintf("Dina poäng i år: %v", uPoints)
 
-    msgInteractionResponse(s, i, str)
+    msgStdInteractionResponse(s, i, str)
 }
 
 // Command: inställningar
 func settingsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-    msgInteractionResponse(s, i, "...")
+    msgStdInteractionResponse(s, i, "...")
 }
 
 // Command: sammanfatta
 func summaryCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if isOwner(i) {
-        msgInteractionResponse(s, i, "Sammanfatta")
+        msgStdInteractionResponse(s, i, "Sammanfatta")
 	} else {
-        msgInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando.")
+        msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando.")
 	}
 }
 
@@ -300,7 +293,7 @@ func refreshCommand(s *discordgo.Session, i *discordgo.InteractionCreate, COMMAN
 	if isOwner(i) {
         log.Println("Refreshing commands...")
 
-        msgInteractionResponse(s, i, "Refreshing commands...")
+        msgStdInteractionResponse(s, i, "Refreshing commands...")
 
         cID := ""
 
@@ -335,7 +328,7 @@ func refreshCommand(s *discordgo.Session, i *discordgo.InteractionCreate, COMMAN
 
         log.Println("Finished refreshing!")
 	} else {
-        msgInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando...")
+        msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando...")
 	}
 }
 
@@ -344,14 +337,14 @@ func aboutCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
            "\n" +
            "Den version jag kör är: " + VERSION
 
-    msgInteractionResponse(s, i, str)
+    msgStdInteractionResponse(s, i, str)
 }
 
 /*
   Component handlers
 */
 
-func matchBetComponent(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func betOnSelected(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
 	defer svffDB.Close()
 	if err != nil { log.Fatal(err) }
@@ -402,7 +395,84 @@ func matchBetComponent(s *discordgo.Session, i *discordgo.InteractionCreate) {
         },
     }
 
-    compMsgInteractionResponse(s, i, msg, components)
+    compInteractionResponse(s, i, discordgo.InteractionResponseUpdateMessage, msg, components)
+}
+
+func challOnSelected(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
+	defer svffDB.Close()
+	if err != nil { log.Fatal(err) }
+
+	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
+	defer betsDB.Close()
+	if err != nil { log.Fatal(err) }
+
+    // Parsing values
+	vals := i.MessageComponentData().Values
+    if len(vals) == 0 { log.Panic(err) }
+
+    splitted := strings.Split(vals[0], "_")
+
+    _, err = s.User(splitted[0])
+	if err != nil { log.Panic(err) }
+
+    matchID := splitted[1]
+
+	_, err = s.User(i.Interaction.Member.User.ID)
+	if err != nil { log.Panic(err) }
+
+    // Do things
+    var m match
+
+	err = svffDB.QueryRow("SELECT id, homeTeam, awayTeam, date FROM matches WHERE id=?", matchID).Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date)
+	if err != nil { log.Panic(err) }
+
+    components := []discordgo.MessageComponent {
+        discordgo.ActionsRow {
+            Components: []discordgo.MessageComponent {
+                discordgo.SelectMenu {
+                    CustomID: "challWinner",
+                    Options: []discordgo.SelectMenuOption{
+                        {
+                            Label: m.homeTeam,
+                            Value: "home",
+                            Default: true,
+                        },
+                        {
+                            Label: m.awayTeam,
+                            Value: "away",
+                        },
+                    },
+                },
+            },
+        },
+        discordgo.ActionsRow {
+            Components: []discordgo.MessageComponent {
+                discordgo.SelectMenu {
+                    CustomID: "pointsChall",
+                    Placeholder: "Poäng att satsa.",
+                    Options: []discordgo.SelectMenuOption{
+                        {
+                            Label: "1 Poäng",
+                            Value: "1",
+                        },
+                        {
+                            Label: "5 Poäng",
+                            Value: "5",
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+    msg := "Vem tror du vinner och hur mycket poäng vill du satsa?"
+
+    compInteractionResponse(s, i, discordgo.InteractionResponseUpdateMessage, msg, components)
+}
+
+func challWinner(s *discordgo.Session, i *discordgo.InteractionCreate) {
+    addInteractionResponse(s, i, discordgo.InteractionResponseDeferredMessageUpdate, "")
 }
 
 func scoreComponent(s *discordgo.Session, i *discordgo.InteractionCreate, where location) {
@@ -500,7 +570,21 @@ func isOwner(i *discordgo.InteractionCreate) bool {
 	return false
 }
 
-func msgInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) {
+func addInteractionResponse(s *discordgo.Session,
+                         i *discordgo.InteractionCreate,
+                         interactionType discordgo.InteractionResponseType,
+                         msg string) {
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
+		Type: interactionType,
+		Data: &discordgo.InteractionResponseData {
+			Content: msg,
+			Flags: 1 << 6, // Ephemeral
+		},
+	}); err != nil { log.Panic(err) }
+
+}
+
+func msgStdInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) {
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData {
@@ -510,9 +594,13 @@ func msgInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCreate
 	}); err != nil { log.Panic(err) }
 }
 
-func compMsgInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCreate, msg string, components []discordgo.MessageComponent) {
+func compInteractionResponse(s *discordgo.Session,
+                                i *discordgo.InteractionCreate,
+                                interactionType discordgo.InteractionResponseType,
+                                msg string,
+                                components []discordgo.MessageComponent) {
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Type: interactionType,
 		Data: &discordgo.InteractionResponseData {
 			Content: msg,
 			Components: components,
@@ -521,6 +609,53 @@ func compMsgInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCr
 	}); err != nil { log.Panic(err) }
 }
 
+// Parameter is optional string to add to value of the options.
+// This is so we can add meta data about things such as challenges, we need
+// to remember who the challengee was...
+func getRoundMatchesAsOptions(value ...string) *[]discordgo.SelectMenuOption {
+	db, err := sql.Open(DB_TYPE, SVFF_DB)
+	defer db.Close()
+	if err != nil { log.Fatal(err) }
+
+	today := time.Now().Format("2006-01-02")
+	tenFromToday := time.Now().AddDate(0, 0, 10).Format("2006-01-02")
+
+	rows, _ := db.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE date BETWEEN ? and ?", today, tenFromToday)
+	defer rows.Close()
+
+	var matches []*match
+	for rows.Next() {
+		var m match
+		if err := rows.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished); err != nil { log.Panic(err) }
+		matches = append(matches, &m)
+	}
+
+    options := []discordgo.SelectMenuOption{}
+
+	if len(matches) == 0 {
+		options = append(options, discordgo.SelectMenuOption{
+			Label: "Inga matcher tillgängliga kommande tio dagar.",
+			Value: "",
+			Description: "",
+		})
+	} else {
+		for _, m := range matches {
+            val := strconv.Itoa(m.id)
+
+            if len(value) == 1 {
+                val = value[0] + "_" + val
+            }
+
+            options = append(options, discordgo.SelectMenuOption{
+                Label: fmt.Sprintf("%v vs %v", m.homeTeam, m.awayTeam),
+                Value: val,
+                Description: m.date,
+            })
+		}
+	}
+
+    return &options
+}
 
 /*
  Interval functions
@@ -637,7 +772,7 @@ func initializeBot() *discordgo.Session {
 	}
 
 	/*
-	Commands and handlers
+	Commands and handlers declarations
 	*/
 
 	var (
@@ -733,10 +868,13 @@ func initializeBot() *discordgo.Session {
 			"ommig": func(s *discordgo.Session, i *discordgo.InteractionCreate)         {   aboutCommand(s, i)              },
 		}
 
+        // Component handlers
 		COMPONENT_HANDLERS = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			"selectMatch": func(s *discordgo.Session, i *discordgo.InteractionCreate)   {   matchBetComponent(s, i)         },
-			"scoreHome": func(s *discordgo.Session, i *discordgo.InteractionCreate)     {   scoreComponent(s, i, Home)      },
-			"scoreAway": func(s *discordgo.Session, i *discordgo.InteractionCreate)     {   scoreComponent(s, i, Away)      },
+			"betOnSelected": func(s *discordgo.Session, i *discordgo.InteractionCreate)   {   betOnSelected(s, i)             },
+			"challOnSelected": func(s *discordgo.Session, i *discordgo.InteractionCreate) {   challOnSelected(s, i)           },
+			"challWinner": func(s *discordgo.Session, i *discordgo.InteractionCreate)     {   challWinner(s, i)               },
+			"scoreHome": func(s *discordgo.Session, i *discordgo.InteractionCreate)       {   scoreComponent(s, i, Home)      },
+			"scoreAway": func(s *discordgo.Session, i *discordgo.InteractionCreate)       {   scoreComponent(s, i, Away)      },
 		}
 	)
 
