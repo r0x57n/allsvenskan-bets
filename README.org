@@ -4,3 +4,6 @@ This is a bot for Discord that handles server-local bets regarding the matches i
 
 ** Commands
 ...
+
+** Layout
+Currently the main bot is located in main.go. The bigger commands are divided into __Cmd.go files. The interval stuff (e.g. checking betting results) is stored inside of intervalChecking.go.
