@@ -37,8 +37,8 @@ var (
 	GUILD_ID  = flag.String("guild", "", "Test guild ID")
 	BOT_TOKEN = flag.String("token", "MTAwMDgzNDQ3MzIyODc3OTU4Mg.GMTTc2.8vE1wGIbRP41q6G_md3FhXfHAISDZww2Ja0aTs", "Bot access token")
 	APP_ID    = flag.String("app", "1000834473228779582", "Application ID")
-    RR        = flag.Bool("RR", false, "Remove commands and refresh") // Be careful with this, max of 200 commands can be added in a day, removing and adding counts...
-    UPDATE    = flag.Bool("update", false, "Update commands")
+    DELETE    = flag.Bool("delete", false, "Remove all commands")
+    UPDATE    = flag.Bool("update", false, "Update/add all commands")
 )
 
 const (
@@ -508,30 +508,25 @@ func initializeBot() *dg.Session {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
 
-    // Delete/Update commands
-    if *RR || *UPDATE {
-        // Delete earlier commands
-        if *RR {
-            cmds, _ := s.ApplicationCommands(*APP_ID, *GUILD_ID)
+    // Delete commands
+    if *DELETE {
+        cmds, _ := s.ApplicationCommands(*APP_ID, *GUILD_ID)
 
-            for _, cmd := range cmds {
-                log.Printf("Deleting: %v", cmd.Name)
-                s.ApplicationCommandDelete(*APP_ID, *GUILD_ID, cmd.ID)
-            }
+        for _, cmd := range cmds {
+            log.Printf("Deleting: %v", cmd.Name)
+            s.ApplicationCommandDelete(*APP_ID, *GUILD_ID, cmd.ID)
         }
+    }
 
-        // Update/add commands
-        CMD_IDS := make(map[string]string, len(COMMANDS))
-
+    // Update/add commands
+    if *UPDATE {
         for _, cmd := range COMMANDS {
             log.Printf("Adding: %v", cmd.Name)
 
-            rcmd, err := s.ApplicationCommandCreate(*APP_ID, *GUILD_ID, &cmd)
+            _, err := s.ApplicationCommandCreate(*APP_ID, *GUILD_ID, &cmd)
             if err != nil {
                 log.Fatalf("Cannot create slash command %q, %v", cmd.Name, err)
             }
-
-            CMD_IDS[rcmd.ID] = rcmd.Name
         }
     }
 
