@@ -1,47 +1,70 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	_ "github.com/mattn/go-sqlite3"
 	dg "github.com/bwmarrin/discordgo"
 )
 
 // Command: refresh
-func updateCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.ApplicationCommand) {
-	if isOwner(i) {
-        log.Println("Update commands...")
+func updateCommand(s *dg.Session, i *dg.InteractionCreate) {
+    if isOwner(i) {
+        options := []dg.SelectMenuOption{
+            {
+                Label: "Alla",
+                Value: "all",
+            },
+        }
+        cmds, _ := s.ApplicationCommands(*APP_ID, *GUILD_ID)
 
-        msgStdInteractionResponse(s, i, "Updating commands...")
-
-        cID := ""
-
-        if len(i.Interaction.ApplicationCommandData().Options) == 1 {
-            cID = fmt.Sprintf("%v", i.Interaction.ApplicationCommandData().Options[0].Value)
+        for _, cmd := range cmds {
+            options = append(options, dg.SelectMenuOption{
+                Label: cmd.Name,
+                Value: cmd.Name,
+                Description: "",
+            })
         }
 
-        // Initialize commands
-        cmdIDs := make(map[string]string, len(*COMMANDS))
+        components := []dg.MessageComponent {
+            dg.ActionsRow {
+                Components: []dg.MessageComponent {
+                    dg.SelectMenu {
+                        Placeholder: "Välj ett kommando att uppdatera",
+                        CustomID: "updateCommandDo",
+                        Options: options,
+                    },
+                },
+            },
+        }
 
+        compInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, "Välj kommando att uppdatera:", components)
+	} else {
+        msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando...")
+	}
+}
+
+func updateCommandDo(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.ApplicationCommand) {
+	if isOwner(i) {
+        addInteractionResponse(s, i, dg.InteractionResponseUpdateMessage, "Updating commands...")
+
+        cmdName := i.Interaction.MessageComponentData().Values[0]
+
+        log.Printf("Updating commands...")
+
+        // Update one or all commands
         for _, cmd := range *COMMANDS {
-            if cmd.Name == cID {
-                log.Printf("Adding: %v", cmd.Name)
-
-                rcmd, err := s.ApplicationCommandCreate(*APP_ID, *GUILD_ID, &cmd)
+            if cmd.Name == cmdName {
+                _, err := s.ApplicationCommandCreate(*APP_ID, *GUILD_ID, &cmd)
                 if err != nil {
                     log.Fatalf("Cannot create slash command %q, %v", cmd.Name, err)
                 }
-
-                cmdIDs[rcmd.ID] = rcmd.Name
-            } else if cID == "" {
-                log.Printf("Adding: %v", cmd.Name)
-
-                rcmd, err := s.ApplicationCommandCreate(*APP_ID, *GUILD_ID, &cmd)
+                log.Printf("Updating only: %v", cmdName)
+            } else if cmdName == "all" {
+                _, err := s.ApplicationCommandCreate(*APP_ID, *GUILD_ID, &cmd)
                 if err != nil {
                     log.Fatalf("Cannot create slash command %q, %v", cmd.Name, err)
                 }
-
-                cmdIDs[rcmd.ID] = rcmd.Name
+                log.Printf("Updating: %v", cmd.Name)
             }
         }
 
@@ -53,17 +76,44 @@ func updateCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.Applic
 
 // Command: delete
 func deleteCommand(s *dg.Session, i *dg.InteractionCreate) {
-	if isOwner(i) {
-        if len(i.Interaction.ApplicationCommandData().Options) == 0 {
-            log.Panic("No command given...")
+    if isOwner(i) {
+        options := []dg.SelectMenuOption{}
+        cmds, _ := s.ApplicationCommands(*APP_ID, *GUILD_ID)
+
+        for _, cmd := range cmds {
+            options = append(options, dg.SelectMenuOption{
+                Label: cmd.Name,
+                Value: cmd.ID,
+                Description: "",
+            })
         }
 
-        cmdName := fmt.Sprintf("%v", i.Interaction.ApplicationCommandData().Options[0].Name)
-        cmdID := fmt.Sprintf("%v", i.Interaction.ApplicationCommandData().Options[0].Value)
+        components := []dg.MessageComponent {
+            dg.ActionsRow {
+                Components: []dg.MessageComponent {
+                    dg.SelectMenu {
+                        Placeholder: "Välj ett kommando att radera",
+                        CustomID: "deleteCommandDo",
+                        Options: options,
+                    },
+                },
+            },
+        }
 
-        msgStdInteractionResponse(s, i, "Deleting: " + cmdName)
+        compInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, "Välj kommando att radera:", components)
+	} else {
+        msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando...")
+	}
+}
 
-        s.ApplicationCommandDelete(*APP_ID, *GUILD_ID, cmdID)
+func deleteCommandDo(s *dg.Session, i *dg.InteractionCreate) {
+	if isOwner(i) {
+        val := i.MessageComponentData().Values[0]
+
+        msgStdInteractionResponse(s, i, "Deleting: " + val)
+        log.Printf("Deleting: %v", val)
+
+        s.ApplicationCommandDelete(*APP_ID, *GUILD_ID, val)
 	} else {
         msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando...")
 	}
