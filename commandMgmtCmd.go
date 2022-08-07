@@ -45,7 +45,7 @@ func updateCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.Applic
             }
         }
 
-        log.Println("Finished refreshing!")
+        log.Println("Finished updating!")
 	} else {
         msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando...")
 	}

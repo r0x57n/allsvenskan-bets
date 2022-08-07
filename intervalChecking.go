@@ -7,7 +7,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func handleTodaysBets() {
+func checkUnhandledBets() {
 	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
 	defer svffDB.Close()
 	if err != nil { log.Fatal(err) }
@@ -16,13 +16,13 @@ func handleTodaysBets() {
 	defer betsDB.Close()
 	if err != nil { log.Fatal(err) }
 
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	today := time.Now().Format("2006-01-02")
 
-	log.Printf("Handling bets for %v...", yesterday)
+	log.Printf("Handling bets for %v...", today)
 
 	// Fetch all match IDs for today
 	// date(date) tells SQLite to turn date='2006-01-02T00:00:00.00' to '2006-01-02'
-	rows, err := svffDB.Query("SELECT id FROM matches WHERE date(date)=? AND finished=1", yesterday)
+	rows, err := svffDB.Query("SELECT id FROM matches WHERE date(date)=? AND finished=1", today)
 	if err != nil { log.Panic(err) }
 
 	var matchIDs []int
@@ -38,7 +38,7 @@ func handleTodaysBets() {
 	if len(matchIDs) == 0 {
 		log.Print("No matches to handle!")
 	} else {
-		log.Printf("%v matches to handle...", len(matchIDs))
+		log.Printf("%v matches today...", len(matchIDs))
 
 		// Handle bets for each match individually
 		for _, mID := range matchIDs {
@@ -75,7 +75,7 @@ func handleTodaysBets() {
 				}
 			}
 
-			log.Printf("%v bets handled!", len(bets))
+			log.Printf("%v bets handled for match %v!", len(bets), mID)
 		}
 	}
 }
@@ -84,6 +84,8 @@ func addPoints(b bet, points int) {
 	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
 	defer betsDB.Close()
 	if err != nil { log.Fatal(err) }
+
+    log.Printf("Awarding %v point to %v", points, b.uid)
 
 	row := betsDB.QueryRow("SELECT season FROM points WHERE uid=?", b.uid)
 	if err != nil { log.Panic(err) }
@@ -99,5 +101,5 @@ func addPoints(b bet, points int) {
 		if _, err := betsDB.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, b.uid); err != nil { log.Panic(err) }
 	}
 
-	if _, err := betsDB.Exec("UPDATE bets SET handled=1 WHERE id=?", b.id); err != nil { log.Panic(err) }
+	if _, err := betsDB.Exec("UPDATE bets SET handled=1, won=? WHERE id=?", points, b.id); err != nil { log.Panic(err) }
 }

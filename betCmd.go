@@ -6,6 +6,7 @@ import (
     "strings"
 	"log"
 	"database/sql"
+    "time"
 	_ "github.com/mattn/go-sqlite3"
 	dg "github.com/bwmarrin/discordgo"
 )
@@ -38,44 +39,58 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
 	defer betsDB.Close()
 	if err != nil { log.Fatal(err) }
 
+    var msg string
+    var components []dg.MessageComponent
 	matchID, _ := strconv.Atoi(i.MessageComponentData().Values[0])
 	uID := i.Interaction.Member.User.ID
 
-	matchInfo := svffDB.QueryRow("SELECT id, homeTeam, awayTeam, date FROM matches WHERE id=?", matchID)
-	earlierBet, _ := betsDB.Query("SELECT homeScore, awayScore FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID)
-	defer earlierBet.Close()
+    // Get earlier bet info, if any
+    defHome, defAway := -1, -1
+	err = betsDB.QueryRow("SELECT homeScore, awayScore FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID).
+                 Scan(&defHome, &defAway)
+    if err != nil && err != sql.ErrNoRows { log.Panic(err) }
 
-	var (
-		m match
-		defHome int = -1
-		defAway int = -1
-	)
+    // Get match info
+    var m match
+	err = svffDB.QueryRow("SELECT id, homeTeam, awayTeam, date FROM matches WHERE id=?", matchID).
+                 Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date)
+	if err != nil { log.Panic(err) }
 
-	if earlierBet.Next() { // prior bet
-		earlierBet.Scan(&defHome, &defAway)
-	}
+    datetime, err := time.Parse(TIME_LAYOUT, m.date)
+	if err != nil { log.Panic(err) }
 
-	if err := matchInfo.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date); err != nil { log.Panic(err) }
-	msg := fmt.Sprintf("%v (h) vs %v (b) @ %v \n\n**Poäng** *(hemmalag överst)*", m.homeTeam, m.awayTeam, m.date)
-    components := []dg.MessageComponent {
-        dg.ActionsRow {
-            Components: []dg.MessageComponent {
-                dg.SelectMenu {
-                    CustomID:    "betScoreHome",
-                    Placeholder: "Hemmalag",
-                    Options: getScoreMenuOptions(m.id, defHome),
+    // Make the response
+    if time.Now().After(datetime) {
+        msg = "Du kan inte betta på matcher som startat..."
+        components = []dg.MessageComponent {}
+    } else {
+        datetime, _ := time.Parse(TIME_LAYOUT, m.date)
+
+        msg = fmt.Sprintf("Hemmalag: %v\n", m.homeTeam)
+        msg += fmt.Sprintf("Bortalag: %v\n\n", m.awayTeam)
+        msg += fmt.Sprintf("Spelas: %v, klockan %v\n\n", datetime.Format("2006-01-02"), datetime.Format("15:04"))
+        msg += fmt.Sprintf("**Poäng** *(hemmalag överst)*")
+
+        components = []dg.MessageComponent {
+            dg.ActionsRow {
+                Components: []dg.MessageComponent {
+                    dg.SelectMenu {
+                        CustomID:    "betScoreHome",
+                        Placeholder: "Hemmalag",
+                        Options: getScoreMenuOptions(m.id, defHome),
+                    },
                 },
             },
-        },
-        dg.ActionsRow {
-            Components: []dg.MessageComponent {
-                dg.SelectMenu {
-                    CustomID:    "betScoreAway",
-                    Placeholder: "Bortalag",
-                    Options: getScoreMenuOptions(m.id, defAway),
+            dg.ActionsRow {
+                Components: []dg.MessageComponent {
+                    dg.SelectMenu {
+                        CustomID:    "betScoreAway",
+                        Placeholder: "Bortalag",
+                        Options: getScoreMenuOptions(m.id, defAway),
+                    },
                 },
             },
-        },
+        }
     }
 
     compInteractionResponse(s, i, dg.InteractionResponseUpdateMessage, msg, components)

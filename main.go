@@ -25,7 +25,7 @@ const (
 	BETS_DB = "./bets.db"
 	DB_TYPE = "sqlite3"
 	TIME_LAYOUT = time.RFC3339
-    VERSION = "0.1.0" // major.minor.patch
+    VERSION = "0.2.0" // major.minor.patch
 )
 
 
@@ -67,6 +67,7 @@ type bet struct {
 	homeScore int
 	awayScore int
 	handled int
+    won int
 }
 
 type user struct {
@@ -95,11 +96,11 @@ func helpCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.Applicat
             "Du kan */vadslå* över en match. Då slår du vad om hur du tror en match kommer sluta poängmässigt. Har du rätt vinner du poäng som kan användas till antingen **skryträtt**, eller för att */utmana* andra användare.\n" +
             "När du utmanar en annan användare väljer du en utmaning och hur många poäng du satsar på ditt utfall. Vinnaren tar alla poängen.\n" +
             "\n" +
-            "Alla vadslagningar kollas runt midnatt och det är först då poängen delas ut.\n" +
+            "Resultaten för matcherna uppdateras lite då och då under dagen, därför kan det ta ett tag till att poängen delas ut efter en match är spelad.\n" +
             "\n" +
 	        "**Kommandon**\n"
 
-    adminOnly := map[string]int{"sammanfatta": 1, "update": 1, "delete": 1}
+    adminOnly := map[string]int{"sammanfatta": 1, "update": 1, "delete": 1, "checkbets": 1}
 
 	for _, elem := range *COMMANDS {
 		if _, ok := adminOnly[elem.Name]; !ok {
@@ -163,10 +164,27 @@ func earlierCommand(s *dg.Session, i *dg.InteractionCreate) {
 	defer betsDB.Close()
 	if err != nil { log.Fatal(err) }
 
-	uID := i.Interaction.ApplicationCommandData().Options[0].Value
+    // Get options and parse
+    options := i.Interaction.ApplicationCommandData().Options
+	uID := options[0].Value
 
-	bets, _ := betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore FROM bets WHERE uid=? and handled=1", uID)
-	defer bets.Close()
+    betType := 2 // 0 = lost, 1 = won, 2 = all
+    if len(options) == 2 {
+        betType, _ = strconv.Atoi(fmt.Sprintf("%v", options[1].Value))
+    }
+
+    // Get bets
+    var bets *sql.Rows
+    switch betType {
+        case 0:
+            bets, err = betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore, won FROM bets WHERE uid=? AND handled=1 AND won=0", uID)
+        case 1:
+            bets, err = betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore, won FROM bets WHERE uid=? AND handled=1 AND won=1", uID)
+        default:
+            bets, err = betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore, won FROM bets WHERE uid=? AND handled=1", uID)
+    }
+	if err != nil { log.Fatal(err) }
+    defer bets.Close()
 
 	var viewable = 0
 
@@ -180,13 +198,21 @@ func earlierCommand(s *dg.Session, i *dg.InteractionCreate) {
 		var b bet
 
 		for bets.Next() {
-			bets.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore)
+			bets.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.won)
 			matchRow := svffDB.QueryRow("SELECT homeTeam, awayTeam, date FROM matches WHERE id=?", b.matchid)
 
 			var m match
 			matchRow.Scan(&m.homeTeam, &m.awayTeam, &m.date)
 
-			userBets = userBets + fmt.Sprintf("%v (**%v**) - %v (**%v**)", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
+            wonStr := ""
+            if betType == 2 {
+                wonStr = " - Korrekt"
+                if b.won == 0 {
+                    wonStr = " - Inkorrekt"
+                }
+            }
+
+			userBets = userBets + fmt.Sprintf("%v (**%v**) - %v (**%v**)%v\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore, wonStr)
 		}
 
 		if userBets == "" {
@@ -221,7 +247,7 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
 		rows.Scan(&uid, &season)
 		user, _ := s.User(strconv.Itoa(uid))
 
-		str += fmt.Sprintf("#%v @%v med %v poäng\n", pos, user.Username, season)
+		str += fmt.Sprintf("#%v **%v** med %v poäng\n", pos, user.Username, season)
 	}
 
 	str += "--------------\n"
@@ -271,6 +297,15 @@ func infoCommand(s *dg.Session, i *dg.InteractionCreate) {
 	}); err != nil { log.Panic(err) }
 }
 
+// Command: checkbets
+func checkBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
+	if isOwner(i) {
+        msgStdInteractionResponse(s, i, "Checking bets...")
+        checkUnhandledBets()
+	} else {
+        msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando.")
+	}
+}
 
 /*
  Helper functions
@@ -394,15 +429,20 @@ func getUser(uid string) user {
 // This is so we can add meta data about things such as challenges, we need
 // to remember who the challengee was...
 func getRoundMatchesAsOptions(value ...string) *[]dg.SelectMenuOption {
-	db, err := sql.Open(DB_TYPE, SVFF_DB)
-	defer db.Close()
+	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
+	defer svffDB.Close()
 	if err != nil { log.Fatal(err) }
 
 	today := time.Now().Format("2006-01-02")
-	tenFromToday := time.Now().AddDate(0, 0, 10).Format("2006-01-02")
+	todayAndTime := time.Now().Format(TIME_LAYOUT)
 
-	rows, _ := db.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE date BETWEEN ? and ?", today, tenFromToday)
+    round := -1
+    err = svffDB.QueryRow("SELECT round FROM matches WHERE date(date)>=? AND finished='0' ORDER BY date", today).Scan(&round)
+    if err != nil { log.Panic(err) }
+
+	rows, err := svffDB.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE round=? AND date>=?", round, todayAndTime)
 	defer rows.Close()
+    if err != nil { log.Panic(err) }
 
 	var matches []*match
 	for rows.Next() {
@@ -415,7 +455,7 @@ func getRoundMatchesAsOptions(value ...string) *[]dg.SelectMenuOption {
 
 	if len(matches) == 0 {
 		options = append(options, dg.SelectMenuOption{
-			Label: "Inga matcher tillgängliga kommande tio dagar.",
+			Label: "Inga matcher tillgängliga... :(",
 			Value: "",
 			Description: "",
 		})
@@ -427,10 +467,12 @@ func getRoundMatchesAsOptions(value ...string) *[]dg.SelectMenuOption {
                 val = value[0] + "_" + val
             }
 
+            datetime, _ := time.Parse(TIME_LAYOUT, m.date)
+
             options = append(options, dg.SelectMenuOption{
                 Label: fmt.Sprintf("%v vs %v", m.homeTeam, m.awayTeam),
                 Value: val,
-                Description: m.date,
+                Description: datetime.Format("2006-02-01 kl. 15:04"),
             })
 		}
 	}
@@ -509,6 +551,21 @@ func initializeBot() *dg.Session {
 						Description: "Användare att visa vadslagningar för.",
                         Required: true,
 					},
+					{
+						Type: dg.ApplicationCommandOptionString,
+						Name: "typ",
+						Description: "Vill du enbart visa en viss typ av vad?",
+                        Choices: []*dg.ApplicationCommandOptionChoice {
+                            {
+                                Name: "vunna",
+                                Value: "1",
+                            },
+                            {
+                                Name: "förlorade",
+                                Value: "0",
+                            },
+                        },
+					},
 				},
 			},
 			{
@@ -552,6 +609,10 @@ func initializeBot() *dg.Session {
 					},
                 },
 			},
+			{
+				Name: "checkbets",
+				Description: "Kollar om alla lagda bets överenstämmer med resultat.",
+			},
 		}
 
 		COMMAND_HANDLERS = map[string]func(s *dg.Session, i *dg.InteractionCreate) {
@@ -564,24 +625,25 @@ func initializeBot() *dg.Session {
 			"tidigare": func(s *dg.Session, i *dg.InteractionCreate)      {   earlierCommand(s, i)            },
 			"poäng": func(s *dg.Session, i *dg.InteractionCreate)         {   pointsCommand(s, i)             },
 			"inställningar": func(s *dg.Session, i *dg.InteractionCreate) {   settingsCommand(s, i)           },
-			"info": func(s *dg.Session, i *dg.InteractionCreate)          {   infoCommand(s, i)              },
+			"info": func(s *dg.Session, i *dg.InteractionCreate)          {   infoCommand(s, i)               },
 
             // Admin commands
-			"sammanfatta": func(s *dg.Session, i *dg.InteractionCreate)   {   summaryCommand(s,i )            },
+			"sammanfatta": func(s *dg.Session, i *dg.InteractionCreate)   {   summaryCommand(s,i)            },
 			"update": func(s *dg.Session, i *dg.InteractionCreate)        {   updateCommand(s, i, &COMMANDS)  },
 			"delete": func(s *dg.Session, i *dg.InteractionCreate)        {   deleteCommand(s, i)             },
+			"checkbets": func(s *dg.Session, i *dg.InteractionCreate)     {   checkBetsCommand(s,i)          },
 		}
 
         // Component handlers
 		COMPONENT_HANDLERS = map[string]func(s *dg.Session, i *dg.InteractionCreate) {
 			"betOnSelected": func(s *dg.Session, i *dg.InteractionCreate)      {   betOnSelected(s, i)             },
-			"betScoreHome": func(s *dg.Session, i *dg.InteractionCreate)       {   betScoreComponent(s, i, Home)      },
-			"betScoreAway": func(s *dg.Session, i *dg.InteractionCreate)       {   betScoreComponent(s, i, Away)      },
-			"challSelectWinner": func(s *dg.Session, i *dg.InteractionCreate)  {   challSelectWinner(s, i)           },
-			"challSelectPoints": func(s *dg.Session, i *dg.InteractionCreate)  {   challSelectPoints(s, i)               },
-			"challAcceptDiscard": func(s *dg.Session, i *dg.InteractionCreate) {   challAcceptDiscard(s, i)               },
-            "settingsVisibility": func(s *dg.Session, i *dg.InteractionCreate) {   settingsVisibility(s, i)               },
-            "settingsChall": func(s *dg.Session, i *dg.InteractionCreate)      {   settingsChall(s, i)               },
+			"betScoreHome": func(s *dg.Session, i *dg.InteractionCreate)       {   betScoreComponent(s, i, Home)   },
+			"betScoreAway": func(s *dg.Session, i *dg.InteractionCreate)       {   betScoreComponent(s, i, Away)   },
+			"challSelectWinner": func(s *dg.Session, i *dg.InteractionCreate)  {   challSelectWinner(s, i)         },
+			"challSelectPoints": func(s *dg.Session, i *dg.InteractionCreate)  {   challSelectPoints(s, i)         },
+			"challAcceptDiscard": func(s *dg.Session, i *dg.InteractionCreate) {   challAcceptDiscard(s, i)        },
+            "settingsVisibility": func(s *dg.Session, i *dg.InteractionCreate) {   settingsVisibility(s, i)        },
+            "settingsChall": func(s *dg.Session, i *dg.InteractionCreate)      {   settingsChall(s, i)             },
 		}
 	)
 
@@ -649,7 +711,7 @@ func main() {
 
 	// Check the bets on a timed interval
 	c := cron.New()
-	c.AddFunc("@every 30m", handleTodaysBets)
+	c.AddFunc("@every 30m", checkUnhandledBets)
 	c.Start()
 
 	// Wait for stop signal

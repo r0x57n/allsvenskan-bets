@@ -134,7 +134,7 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
 
 func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
     msg := fmt.Sprintf("\nDu tror att %v vinner för %v poäng.\n\n", 1, 2)
-    msg += "Är du säker? En utmaning kan bara tas bort om den du utmanar accepterar.\n"
+    msg += "Är du säker? En utmaning kan bara tas bort om den du utmanar accepterar borttagningen.\n"
 
     components := []dg.MessageComponent {
         dg.ActionsRow {
