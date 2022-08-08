@@ -138,5 +138,6 @@ var (
         "settingsChall": func(s *dg.Session, i *dg.InteractionCreate)      {   settingsChall(s, i)              },
         "updateCommandDo": func(s *dg.Session, i *dg.InteractionCreate)    {   updateCommandDo(s, i, &COMMANDS) },
         "deleteCommandDo": func(s *dg.Session, i *dg.InteractionCreate)    {   deleteCommandDo(s, i)            },
+        "regretSelected": func(s *dg.Session, i *dg.InteractionCreate)     {   regretSelected(s, i)             },
     }
 )

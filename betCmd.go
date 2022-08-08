@@ -19,7 +19,7 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
 	defer betsDB.Close()
 	if err != nil { log.Fatal(err) }
 
-    m := make(map[string]bet)
+    matchidToBet := make(map[string]bet)
     uid := i.Interaction.Member.User.ID
     betsRows, err := betsDB.Query("SELECT matchid, homeScore, awayScore FROM bets WHERE handled=0 AND uid=?", uid)
     if err != nil { log.Panic(err) }
@@ -28,12 +28,14 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
         var b bet
 
         betsRows.Scan(&b.matchid, &b.homeScore, &b.awayScore)
-        m[strconv.Itoa(b.matchid)] = b
+
+        matchidToBet[strconv.Itoa(b.matchid)] = b
     }
 
-    if len(m) > 0 {
+    if len(matchidToBet) > 0 {
         for i, elem := range *options {
-            b := m[elem.Value]
+
+            b := matchidToBet[elem.Value]
             (*options)[i].Label += fmt.Sprintf(" [%v-%v]", b.homeScore, b.awayScore)
         }
     }

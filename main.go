@@ -25,7 +25,7 @@ const (
 	BETS_DB = "./bets.db"
 	DB_TYPE = "sqlite3"
 	TIME_LAYOUT = time.RFC3339
-    VERSION = "0.2.1" // major.minor.patch
+    VERSION = "0.3.0" // major.minor.patch
 )
 
 
@@ -58,6 +58,7 @@ type match struct {
 	scoreHome int
 	scoreAway int
 	finished int
+    round int
 }
 
 type bet struct {
@@ -96,7 +97,7 @@ func helpCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.Applicat
             "Du kan */slåvad* över en match. Då slår du vad om hur du tror en match kommer sluta poängmässigt. Har du rätt vinner du poäng som kan användas till antingen **skryträtt**, eller för att */utmana* andra användare.\n" +
             "När du utmanar en annan användare väljer du en utmaning och hur många poäng du satsar på ditt utfall. Vinnaren tar alla poängen.\n" +
             "\n" +
-            "Resultaten för matcherna uppdateras lite då och då under dagen, därför kan det ta ett tag till att poängen delas ut efter en match är spelad.\n" +
+            "Resultaten för matcherna uppdateras lite då och då under dagen, därför kan det ta ett tag tills dess att poängen delas ut efter att en match är spelad.\n" +
             "\n" +
 	        "**Kommandon**\n"
 
@@ -148,10 +149,6 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 	}
 
     msgStdInteractionResponse(s, i, userBets)
-}
-
-func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
-    msgStdInteractionResponse(s, i, "Ej implementerat.")
 }
 
 // Command: tidigare
