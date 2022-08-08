@@ -25,7 +25,7 @@ const (
 	BETS_DB = "./bets.db"
 	DB_TYPE = "sqlite3"
 	TIME_LAYOUT = time.RFC3339
-    VERSION = "0.2.0" // major.minor.patch
+    VERSION = "0.2.1" // major.minor.patch
 )
 
 
@@ -93,7 +93,7 @@ const (
 func helpCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.ApplicationCommand) {
 	help := "Denna bot är till för att kunna slå vad om hur olika Allsvenska matcher kommer sluta.\n" +
 		    "\n" +
-            "Du kan */vadslå* över en match. Då slår du vad om hur du tror en match kommer sluta poängmässigt. Har du rätt vinner du poäng som kan användas till antingen **skryträtt**, eller för att */utmana* andra användare.\n" +
+            "Du kan */slåvad* över en match. Då slår du vad om hur du tror en match kommer sluta poängmässigt. Har du rätt vinner du poäng som kan användas till antingen **skryträtt**, eller för att */utmana* andra användare.\n" +
             "När du utmanar en annan användare väljer du en utmaning och hur många poäng du satsar på ditt utfall. Vinnaren tar alla poängen.\n" +
             "\n" +
             "Resultaten för matcherna uppdateras lite då och då under dagen, därför kan det ta ett tag till att poängen delas ut efter en match är spelad.\n" +
@@ -123,7 +123,7 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 
 	uID := i.Interaction.Member.User.ID
 
-	bets, _ := betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore FROM bets WHERE uid=? and handled=0", uID)
+	bets, _ := betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore FROM bets WHERE uid=? AND handled=0", uID)
 	defer bets.Close()
 
 	var b bet
@@ -279,7 +279,7 @@ func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
 func infoCommand(s *dg.Session, i *dg.InteractionCreate) {
     str := "Jag är en bot gjord i Go med hjälp av [discordgo](https://github.com/bwmarrin/discordgo) paketet. Min källkod finns på [Github](https://github.com/r0x57n/allsvenskanBets)." +
            "\n\n" +
-           "Den version jag kör är: " + VERSION
+           "*v." + VERSION + "*"
 
 	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
 		Type: dg.InteractionResponseChannelMessageWithSource,
@@ -486,7 +486,6 @@ func getRoundMatchesAsOptions(value ...string) *[]dg.SelectMenuOption {
 */
 
 func initializeBot() *dg.Session {
-
 	log.Print("Initializing...")
 
 	// Login bot
@@ -495,6 +494,7 @@ func initializeBot() *dg.Session {
 		log.Fatalf("Invalid bot parameters: %v", err)
 	}
 
+    // Add command/component handlers
 	s.AddHandler(func(s *dg.Session, i *dg.InteractionCreate) {
 		switch i.Type {
 			case dg.InteractionApplicationCommand:
@@ -504,6 +504,7 @@ func initializeBot() *dg.Session {
 		}
 	})
 
+    // Tell us when we manage to login
 	s.AddHandler(func(s *dg.Session, r *dg.Ready) {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})

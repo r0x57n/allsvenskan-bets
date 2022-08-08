@@ -15,6 +15,29 @@ import (
 func betCommand(s *dg.Session, i *dg.InteractionCreate) {
 	options := getRoundMatchesAsOptions()
 
+	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
+	defer betsDB.Close()
+	if err != nil { log.Fatal(err) }
+
+    m := make(map[string]bet)
+    uid := i.Interaction.Member.User.ID
+    betsRows, err := betsDB.Query("SELECT matchid, homeScore, awayScore FROM bets WHERE handled=0 AND uid=?", uid)
+    if err != nil { log.Panic(err) }
+
+    for betsRows.Next() {
+        var b bet
+
+        betsRows.Scan(&b.matchid, &b.homeScore, &b.awayScore)
+        m[strconv.Itoa(b.matchid)] = b
+    }
+
+    if len(m) > 0 {
+        for i, elem := range *options {
+            b := m[elem.Value]
+            (*options)[i].Label += fmt.Sprintf(" [%v-%v]", b.homeScore, b.awayScore)
+        }
+    }
+
     components := []dg.MessageComponent {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
