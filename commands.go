@@ -55,7 +55,7 @@ var (
             Description: "Lista dina kommande vadslagningar.",
         },
         {
-            Name: "tidigare",
+            Name: "vadslagningar",
             Description: "Lista en annan användares tidigare vadslagningar.",
             Options: []*dg.ApplicationCommandOption {
                 {
@@ -119,7 +119,7 @@ var (
         "utmana": func(s *dg.Session, i *dg.InteractionCreate)        {   challengeCommand(s, i)          },
         "fegaur": func(s *dg.Session, i *dg.InteractionCreate)        {   chickenCommand(s, i)            },
         "kommande": func(s *dg.Session, i *dg.InteractionCreate)      {   upcomingCommand(s, i)           },
-        "tidigare": func(s *dg.Session, i *dg.InteractionCreate)      {   earlierCommand(s, i)            },
+        "vadslagningar": func(s *dg.Session, i *dg.InteractionCreate) {   listBetsCommand(s, i)           },
         "poäng": func(s *dg.Session, i *dg.InteractionCreate)         {   pointsCommand(s, i)             },
         "inställningar": func(s *dg.Session, i *dg.InteractionCreate) {   settingsCommand(s, i)           },
         "info": func(s *dg.Session, i *dg.InteractionCreate)          {   infoCommand(s, i)               },

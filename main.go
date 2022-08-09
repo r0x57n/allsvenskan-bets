@@ -14,6 +14,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/robfig/cron/v3"
 	dg "github.com/bwmarrin/discordgo"
+    "github.com/gookit/config/v2"
+    "github.com/gookit/config/v2/yaml"
 )
 
 
@@ -26,7 +28,7 @@ const (
 	BETS_DB = "./bets.db"
 	DB_TYPE = "sqlite3"
 	TIME_LAYOUT = time.RFC3339
-    VERSION = "0.3.0" // major.minor.patch
+    VERSION = "0.5.0" // major.minor.patch
     CHECK_BETS_INTERVAL = "30m"
     CHECK_CHALL_INTERVAL = "5s"
 )
@@ -38,19 +40,16 @@ const (
 
 var (
 	GUILD_ID  = flag.String("guild", "", "Test guild ID")
-	BOT_TOKEN = flag.String("token", "MTAwMDgzNDQ3MzIyODc3OTU4Mg.GMTTc2.8vE1wGIbRP41q6G_md3FhXfHAISDZww2Ja0aTs", "Bot access token")
-	APP_ID    = flag.String("app", "1000834473228779582", "Application ID")
+	BOT_TOKEN = flag.String("token", "", "Bot access token")
+	APP_ID    = flag.String("app", "", "Application ID")
+    OWNER     = flag.String("owner", "", "Owner of the bot")
     DELETE    = flag.Bool("delete", false, "Remove all commands")
     UPDATE    = flag.Bool("update", false, "Update/add all commands")
 )
 
-const (
-	OWNER = 436614981283217418
-)
-
 
 /*
- Types and structs
+  Structs
 */
 
 type cmd struct {
@@ -91,6 +90,19 @@ type challenge struct {
     status status
 }
 
+type user struct {
+    uid int
+    season int
+    history string
+    viewable int
+    interactable int
+}
+
+
+/*
+  Enums
+*/
+
 type status int
 const (
     Unhandled = iota
@@ -101,18 +113,16 @@ const (
     Forfeited
 )
 
-type user struct {
-    uid int
-    season int
-    history string
-    viewable int
-    interactable int
-}
-
 type location int
 const (
-	Home location = iota
+	Home = iota
 	Away
+)
+
+type InteractionType dg.InteractionResponseType
+const (
+	NewMsg = dg.InteractionResponseChannelMessageWithSource
+	UpdateMsg = dg.InteractionResponseUpdateMessage
 )
 
 
@@ -130,12 +140,12 @@ func helpCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.Applicat
             "Resultaten för matcherna uppdateras lite då och då under dagen, därför kan det ta ett tag tills dess att poängen delas ut efter att en match är spelad."
 
     adminOnly := map[string]int{"sammanfatta": 1, "update": 1, "delete": 1, "checkbets": 1}
-    uid := getInteractUID(i)
+    isOwner := getInteractUID(i) == *OWNER
 
     cmds := ""
 
 	for _, elem := range *COMMANDS {
-		if _, adminCmd := adminOnly[elem.Name]; !adminCmd || uid == strconv.Itoa(OWNER) {
+		if _, adminCmd := adminOnly[elem.Name]; !adminCmd || isOwner {
             if adminCmd {
                 cmds += fmt.Sprintf("*/%v - %v*\n", elem.Name, elem.Description)
             } else {
@@ -144,26 +154,14 @@ func helpCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.Applicat
 		}
 	}
 
-	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: dg.InteractionResponseChannelMessageWithSource,
-		Data: &dg.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: "",
-            Embeds: []*dg.MessageEmbed {
-                {
-                    Title:     "Hjälp",
-                    Description: help,
-                    Fields: []*dg.MessageEmbedField {
-                        {
-                            Name: "Kommandon",
-                            Value: cmds,
-                        },
-                    },
-                },
-            },
+    fields := []*dg.MessageEmbedField {
+        {
+            Name: "Kommandon",
+            Value: cmds,
+        },
+    }
 
-		},
-	}); err != nil { log.Panic(err) }
+    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Hjälp", help)
 }
 
 // Command: kommande
@@ -184,10 +182,10 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 	var b bet
 
     type temp struct {
-        hT string
-        aT string
-        hS int
-        aS int
+        homeTeam string
+        awayTeam string
+        homeScore int
+        awayScore int
     }
 
     betsC := 0
@@ -206,10 +204,10 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 
 		//userBets = userBets + fmt.Sprintf("%v (**%v**) - %v (**%v**), spelas om %v dagar.\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore, daysUntil)
 		var t temp
-        t.hT = m.homeTeam
-        t.aT = m.awayTeam
-        t.hS = b.homeScore
-        t.aS = b.awayScore
+        t.homeTeam = m.homeTeam
+        t.awayTeam = m.awayTeam
+        t.homeScore = b.homeScore
+        t.awayScore = b.awayScore
 
         matches[daysUntil] = append(matches[daysUntil], t)
 
@@ -223,7 +221,7 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
         name := ""
 
         for _, e := range v {
-            str += fmt.Sprintf("%v (**%v**) vs %v (**%v**)\n", e.hT, e.hS, e.aT, e.aS)
+            str += fmt.Sprintf("%v (**%v**) vs %v (**%v**)\n", e.homeTeam, e.homeScore, e.awayTeam, e.awayScore)
         }
 
         if k == -0 {
@@ -242,25 +240,11 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 		userBets = "Inga vadslagningar ännu!"
 	}
 
-	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: dg.InteractionResponseChannelMessageWithSource,
-		Data: &dg.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: "",
-            Embeds: []*dg.MessageEmbed {
-                {
-                    Title:     "Kommande vad",
-                    Description: userBets,
-                    Fields: fields,
-                },
-            },
-
-		},
-	}); err != nil { log.Panic(err) }
+    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Kommande vad", userBets)
 }
 
-// Command: tidigare
-func earlierCommand(s *dg.Session, i *dg.InteractionCreate) {
+// Command: vadslagningar
+func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
 	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
 	defer svffDB.Close()
 	if err != nil { log.Fatal(err) }
@@ -362,21 +346,7 @@ func earlierCommand(s *dg.Session, i *dg.InteractionCreate) {
         }
     }
 
-	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: dg.InteractionResponseChannelMessageWithSource,
-		Data: &dg.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: "",
-            Embeds: []*dg.MessageEmbed {
-                {
-                    Title: fmt.Sprintf("Vadslagningar"),
-                    Description: desc,
-                    Fields: fields,
-                },
-            },
-
-		},
-	}); err != nil { log.Panic(err) }
+    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Vadslagningar", desc)
 }
 
 // Command: poäng
@@ -416,34 +386,19 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
 
 	userPoints := fmt.Sprintf("Du har samlat ihop **%v** poäng i år!", uPoints)
 
-	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: dg.InteractionResponseChannelMessageWithSource,
-		Data: &dg.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: "",
-            Embeds: []*dg.MessageEmbed {
-                {
-                    Title:     "Poäng",
-                    Description: userPoints,
-                    Fields: []*dg.MessageEmbedField {
-                        {
-                            Name: "Top 10",
-                            Value: top10,
-                        },
-                    },
-                },
-            },
+    fields := []*dg.MessageEmbedField {
+        {
+            Name: "Top 10",
+            Value: top10,
+        },
+    }
 
-		},
-	}); err != nil { log.Panic(err) }
+    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Poäng", userPoints)
 }
 
 // Command: sammanfatta
 func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
-	if !isOwner(i) {
-        msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando.")
-        return
-	}
+	if notOwner(s, i) { return }
 
 	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
 	defer svffDB.Close()
@@ -511,40 +466,25 @@ func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
     msg += fmt.Sprintf("**%v**:st vann sina vad medans **%v**:st förlorade.\n\n", won, lost)
     msg += topThree
 
-    msgStdInteractionResponse(s, i, msg)
+    addInteractionResponse(s, i, NewMsg, msg)
 }
 
 // Command: info
 func infoCommand(s *dg.Session, i *dg.InteractionCreate) {
     str := "Jag är en bot gjord i Go med hjälp av [discordgo](https://github.com/bwmarrin/discordgo) paketet. Min källkod finns på [Github](https://github.com/r0x57n/allsvenskanBets)."
+    str += "\n\n"
+    str += "*v" + VERSION + "*"
 
-	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: dg.InteractionResponseChannelMessageWithSource,
-		Data: &dg.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: "",
-            Embeds: []*dg.MessageEmbed {
-                {
-                    Title:     "Hej!",
-                    Description: str,
-                    Footer: &dg.MessageEmbedFooter {
-                        Text: "v" + VERSION,
-                    },
-                },
-            },
-
-		},
-	}); err != nil { log.Panic(err) }
+    fields := []*dg.MessageEmbedField {}
+    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Hej!", str)
 }
 
 // Command: checkbets
 func checkBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
-	if isOwner(i) {
-        msgStdInteractionResponse(s, i, "Checking bets...")
-        checkUnhandledBets()
-	} else {
-        msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando.")
-	}
+	if notOwner(s, i) { return }
+
+    addInteractionResponse(s, i, NewMsg, "Checking bets...")
+    checkUnhandledBets()
 }
 
 /*
@@ -565,91 +505,6 @@ func getInteractUID(i *dg.InteractionCreate) string {
     }
 
     return uid
-}
-
-func getScoreMenuOptions(matchID int, defScore int) []dg.SelectMenuOption {
-	scores := []dg.SelectMenuOption {}
-
-	for i := 0; i < 25; i++ {
-		if defScore == i {
-			scores = append(scores, dg.SelectMenuOption{
-				Label: strconv.Itoa(i),
-				Value: fmt.Sprintf("%v_%v", matchID, i),
-				Default: true,
-			})
-		} else {
-			scores = append(scores, dg.SelectMenuOption{
-				Label: strconv.Itoa(i),
-				Value: fmt.Sprintf("%v_%v", matchID, i),
-				Default: false,
-			})
-		}
-	}
-
-	return scores
-}
-
-func getCommandsAsChoices(s *dg.Session) []*dg.ApplicationCommandOptionChoice {
-    cmds, err := s.ApplicationCommands(*APP_ID, *GUILD_ID)
-    if err != nil { log.Panic(err) }
-
-    var choices []*dg.ApplicationCommandOptionChoice
-
-    for _, cmd := range cmds {
-        choices = append(choices, &dg.ApplicationCommandOptionChoice{
-            Name: cmd.Name,
-            Value: cmd.ID,
-        })
-    }
-
-    return choices
-}
-
-func isOwner(i *dg.InteractionCreate) bool {
-	if getInteractUID(i) == strconv.Itoa(OWNER) {
-		return true
-	}
-
-	return false
-}
-
-func addInteractionResponse(s *dg.Session,
-                         i *dg.InteractionCreate,
-                         interactionType dg.InteractionResponseType,
-                         msg string) {
-	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: interactionType,
-		Data: &dg.InteractionResponseData {
-			Content: msg,
-			Flags: 1 << 6, // Ephemeral
-		},
-	}); err != nil { log.Panic(err) }
-
-}
-
-func msgStdInteractionResponse(s *dg.Session, i *dg.InteractionCreate, msg string) {
-	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: dg.InteractionResponseChannelMessageWithSource,
-		Data: &dg.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
-			Content: msg,
-		},
-	}); err != nil { log.Panic(err) }
-}
-
-func compInteractionResponse(s *dg.Session,
-                                i *dg.InteractionCreate,
-                                interactionType dg.InteractionResponseType,
-                                msg string,
-                                components []dg.MessageComponent) {
-	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: interactionType,
-		Data: &dg.InteractionResponseData {
-			Content: msg,
-			Components: components,
-			Flags: 1 << 6, // Ephemeral
-        },
-	}); err != nil { log.Panic(err) }
 }
 
 func getUser(uid string) user {
@@ -680,6 +535,21 @@ func getUser(uid string) user {
 
     return u
 }
+
+func notOwner(s *dg.Session, i *dg.InteractionCreate) bool {
+    isntOwner := getInteractUID(i) != *OWNER
+
+	if isntOwner {
+        addInteractionResponse(s, i, NewMsg, "Du har inte rättigheter att köra detta kommando...")
+        return true
+	}
+
+    return false
+}
+
+/*
+   Options builders for select menus
+*/
 
 // Parameter is optional string to add to value of the options.
 // This is so we can add meta data about things such as challenges, we need
@@ -738,7 +608,7 @@ func getRoundMatchesAsOptions(value ...string) *[]dg.SelectMenuOption {
     return &options
 }
 
-func getPointsOptions(values string, maxPoints int) *[]dg.SelectMenuOption {
+func getPointsAsOptions(values string, maxPoints int) *[]dg.SelectMenuOption {
     options := []dg.SelectMenuOption{}
 
     if maxPoints != 0 {
@@ -759,6 +629,80 @@ func getPointsOptions(values string, maxPoints int) *[]dg.SelectMenuOption {
 
     return &options
 }
+
+
+func getScoresAsOptions(matchID int, defScore int) *[]dg.SelectMenuOption {
+	options := []dg.SelectMenuOption {}
+
+	for i := 0; i < 25; i++ {
+        isChosenScore := defScore == i
+
+        options = append(options, dg.SelectMenuOption{
+            Label: strconv.Itoa(i),
+            Value: fmt.Sprintf("%v_%v", matchID, i),
+            Default: isChosenScore,
+        })
+	}
+
+	return &options
+}
+
+
+/*
+  Interaction response adders
+*/
+
+func addInteractionResponse(s *dg.Session,
+                            i *dg.InteractionCreate,
+                            typ dg.InteractionResponseType,
+                            msg string) {
+	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
+		Type: typ,
+		Data: &dg.InteractionResponseData {
+			Content: msg,
+			Flags: 1 << 6, // Ephemeral
+		},
+	}); err != nil { log.Panic(err) }
+}
+
+func addEmbeddedInteractionResponse(s *dg.Session,
+                                    i *dg.InteractionCreate,
+                                    typ dg.InteractionResponseType,
+                                    fields []*dg.MessageEmbedField,
+                                    title string,
+                                    descr string) {
+	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
+		Type: typ,
+		Data: &dg.InteractionResponseData {
+			Flags: 1 << 6, // Ephemeral
+            Embeds: []*dg.MessageEmbed {
+                {
+                    Title: title,
+                    Description: descr,
+                    Fields: fields,
+                },
+            },
+
+		},
+	}); err != nil { log.Panic(err) }
+
+}
+
+func addCompInteractionResponse(s *dg.Session,
+                                i *dg.InteractionCreate,
+                                typ dg.InteractionResponseType,
+                                msg string,
+                                components []dg.MessageComponent) {
+	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
+		Type: typ,
+		Data: &dg.InteractionResponseData {
+			Content: msg,
+			Components: components,
+			Flags: 1 << 6, // Ephemeral
+        },
+	}); err != nil { log.Panic(err) }
+}
+
 
 /*
   Initialization
@@ -826,7 +770,23 @@ func initializeBot() *dg.Session {
 func main() {
 	log.Print("Starting...")
 
+    config.WithOptions(config.ParseEnv)
+    config.AddDriver(yaml.Driver)
+    err := config.LoadFiles("config.yml")
+	if err != nil { panic(err) }
+
     flag.Parse()
+    if *BOT_TOKEN == "" {
+        *BOT_TOKEN = config.String("botToken")
+    }
+
+    if *APP_ID == "" {
+        *APP_ID = config.String("appID")
+    }
+
+    if *OWNER == "" {
+        *OWNER = config.String("owner")
+    }
 
 	// Initialize and start the bot
 	s := initializeBot()

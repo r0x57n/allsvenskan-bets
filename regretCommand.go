@@ -80,7 +80,7 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
         },
     }
 
-    compInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, "Dina vadslagningar", components)
+    addCompInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, "Dina vadslagningar", components)
 }
 
 func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
@@ -106,10 +106,10 @@ func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
 
     if time.Now().After(datetime) {
         msg := "Kan inte ta bort en vadslagning för en pågåenge eller spelad match..."
-        compInteractionResponse(s, i, dg.InteractionResponseUpdateMessage, msg, components)
+        addCompInteractionResponse(s, i, dg.InteractionResponseUpdateMessage, msg, components)
     } else {
         _, err = betsDB.Exec("DELETE FROM bets WHERE id=?", bid)
         msg := "Vadslagning borttaget!"
-        compInteractionResponse(s, i, dg.InteractionResponseUpdateMessage, msg, components)
+        addCompInteractionResponse(s, i, dg.InteractionResponseUpdateMessage, msg, components)
     }
 }
