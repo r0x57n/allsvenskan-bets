@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+    "sort"
 	"flag"
 	"fmt"
 	"strconv"
@@ -26,6 +27,8 @@ const (
 	DB_TYPE = "sqlite3"
 	TIME_LAYOUT = time.RFC3339
     VERSION = "0.3.0" // major.minor.patch
+    CHECK_BETS_INTERVAL = "30m"
+    CHECK_CHALL_INTERVAL = "5s"
 )
 
 
@@ -50,6 +53,12 @@ const (
  Types and structs
 */
 
+type cmd struct {
+    name string
+    category string
+    admin int
+}
+
 type match struct {
 	id int
 	homeTeam string
@@ -70,6 +79,27 @@ type bet struct {
 	handled int
     won int
 }
+
+type challenge struct {
+    id int
+    challengerUID int
+    challengeeUID int
+    typ int
+    matchID int
+    points int
+    condition string
+    status status
+}
+
+type status int
+const (
+    Unhandled = iota
+    Sent
+    Accepted
+    Declined
+    RequestForfeit
+    Forfeited
+)
 
 type user struct {
     uid int
@@ -94,22 +124,46 @@ const (
 func helpCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]dg.ApplicationCommand) {
 	help := "Denna bot är till för att kunna slå vad om hur olika Allsvenska matcher kommer sluta.\n" +
 		    "\n" +
-            "Du kan */slåvad* över en match. Då slår du vad om hur du tror en match kommer sluta poängmässigt. Har du rätt vinner du poäng som kan användas till antingen **skryträtt**, eller för att */utmana* andra användare.\n" +
+            "Du kan */slåvad* över en match. Då slår du vad om hur du tror en match kommer sluta poängmässigt. Har du rätt vinner du poäng som kan användas till antingen **skryträtt**, eller för att */utmana* andra användare. " +
             "När du utmanar en annan användare väljer du en utmaning och hur många poäng du satsar på ditt utfall. Vinnaren tar alla poängen.\n" +
             "\n" +
-            "Resultaten för matcherna uppdateras lite då och då under dagen, därför kan det ta ett tag tills dess att poängen delas ut efter att en match är spelad.\n" +
-            "\n" +
-	        "**Kommandon**\n"
+            "Resultaten för matcherna uppdateras lite då och då under dagen, därför kan det ta ett tag tills dess att poängen delas ut efter att en match är spelad."
 
     adminOnly := map[string]int{"sammanfatta": 1, "update": 1, "delete": 1, "checkbets": 1}
+    uid := getInteractUID(i)
+
+    cmds := ""
 
 	for _, elem := range *COMMANDS {
-		if _, ok := adminOnly[elem.Name]; !ok {
-			help = help + fmt.Sprintf("/%v - %v\n", elem.Name, elem.Description)
+		if _, adminCmd := adminOnly[elem.Name]; !adminCmd || uid == strconv.Itoa(OWNER) {
+            if adminCmd {
+                cmds += fmt.Sprintf("*/%v - %v*\n", elem.Name, elem.Description)
+            } else {
+                cmds += fmt.Sprintf("/%v - %v\n", elem.Name, elem.Description)
+            }
 		}
 	}
 
-    msgStdInteractionResponse(s, i, help)
+	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
+		Type: dg.InteractionResponseChannelMessageWithSource,
+		Data: &dg.InteractionResponseData {
+			Flags: 1 << 6, // Ephemeral
+			Content: "",
+            Embeds: []*dg.MessageEmbed {
+                {
+                    Title:     "Hjälp",
+                    Description: help,
+                    Fields: []*dg.MessageEmbedField {
+                        {
+                            Name: "Kommandon",
+                            Value: cmds,
+                        },
+                    },
+                },
+            },
+
+		},
+	}); err != nil { log.Panic(err) }
 }
 
 // Command: kommande
@@ -122,14 +176,23 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 	defer betsDB.Close()
 	if err != nil { log.Fatal(err) }
 
-	uID := i.Interaction.Member.User.ID
+	uID := getInteractUID(i)
 
 	bets, _ := betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore FROM bets WHERE uid=? AND handled=0", uID)
 	defer bets.Close()
 
 	var b bet
 
+    type temp struct {
+        hT string
+        aT string
+        hS int
+        aS int
+    }
+
+    betsC := 0
 	userBets := ""
+    matches := make(map[float64][]temp)
 
 	for bets.Next() {
 		bets.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore)
@@ -141,14 +204,59 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 		date, _ := time.Parse(TIME_LAYOUT, m.date)
 		daysUntil := math.Round(time.Until(date).Hours() / 24)
 
-		userBets = userBets + fmt.Sprintf("%v (**%v**) - %v (**%v**), spelas om %v dagar.\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore, daysUntil)
+		//userBets = userBets + fmt.Sprintf("%v (**%v**) - %v (**%v**), spelas om %v dagar.\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore, daysUntil)
+		var t temp
+        t.hT = m.homeTeam
+        t.aT = m.awayTeam
+        t.hS = b.homeScore
+        t.aS = b.awayScore
+
+        matches[daysUntil] = append(matches[daysUntil], t)
+
+        betsC++
 	}
 
-	if userBets == "" {
+    fields := []*dg.MessageEmbedField {}
+
+    for k, v := range matches {
+        str := ""
+        name := ""
+
+        for _, e := range v {
+            str += fmt.Sprintf("%v (**%v**) vs %v (**%v**)\n", e.hT, e.hS, e.aT, e.aS)
+        }
+
+        if k == -0 {
+            name = fmt.Sprintf("Spelas nu")
+        } else {
+            name = fmt.Sprintf("%v dagar kvar", k)
+        }
+
+        fields = append(fields, &dg.MessageEmbedField{
+            Name: name,
+            Value: str,
+        })
+    }
+
+	if betsC == 0 {
 		userBets = "Inga vadslagningar ännu!"
 	}
 
-    msgStdInteractionResponse(s, i, userBets)
+	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
+		Type: dg.InteractionResponseChannelMessageWithSource,
+		Data: &dg.InteractionResponseData {
+			Flags: 1 << 6, // Ephemeral
+			Content: "",
+            Embeds: []*dg.MessageEmbed {
+                {
+                    Title:     "Kommande vad",
+                    Description: userBets,
+                    Fields: fields,
+                },
+            },
+
+		},
+	}); err != nil { log.Panic(err) }
 }
 
 // Command: tidigare
@@ -189,7 +297,7 @@ func earlierCommand(s *dg.Session, i *dg.InteractionCreate) {
 		if err != sql.ErrNoRows { log.Panic(err) }
 	}
 
-	userBets := ""
+    desc, correct, incorrect := "", "", ""
 
 	if viewable == 1 {
 		var b bet
@@ -201,25 +309,74 @@ func earlierCommand(s *dg.Session, i *dg.InteractionCreate) {
 			var m match
 			matchRow.Scan(&m.homeTeam, &m.awayTeam, &m.date)
 
-            wonStr := ""
-            if betType == 2 {
-                wonStr = " - Korrekt"
-                if b.won == 0 {
-                    wonStr = " - Inkorrekt"
-                }
+            if b.won == 0 {
+                incorrect += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
+            } else if b.won == 1 {
+                correct += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
+            }
+		}
+
+		if correct == "" && incorrect == "" {
+			desc = fmt.Sprintf("Användaren har inga vadslagningar ännu!", )
+
+            if correct == "" {
+                correct = "-"
             }
 
-			userBets = userBets + fmt.Sprintf("%v (**%v**) - %v (**%v**)%v\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore, wonStr)
-		}
-
-		if userBets == "" {
-			userBets = fmt.Sprintf("Användaren har inga vadslagningar ännu!", )
+            if incorrect == "" {
+                incorrect = "-"
+            }
 		}
 	} else {
-		userBets = "Användaren har valt att dölja sina vadslagningar."
+		desc = "Användaren har valt att dölja sina vadslagningar."
+        incorrect = "-"
+        correct = "-"
 	}
 
-    msgStdInteractionResponse(s, i, userBets)
+    fields := []*dg.MessageEmbedField {}
+
+    if betType == 0 {
+        fields = []*dg.MessageEmbedField {
+            {
+                Name: "Inkorrekta",
+                Value: incorrect,
+            },
+        }
+    } else if betType == 1 {
+        fields = []*dg.MessageEmbedField {
+            {
+                Name: "Korrekta",
+                Value: correct,
+            },
+        }
+    } else {
+        fields = []*dg.MessageEmbedField {
+            {
+                Name: "Korrekta",
+                Value: correct,
+            },
+            {
+                Name: "Inkorrekta",
+                Value: incorrect,
+            },
+        }
+    }
+
+	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
+		Type: dg.InteractionResponseChannelMessageWithSource,
+		Data: &dg.InteractionResponseData {
+			Flags: 1 << 6, // Ephemeral
+			Content: "",
+            Embeds: []*dg.MessageEmbed {
+                {
+                    Title: fmt.Sprintf("Vadslagningar"),
+                    Description: desc,
+                    Fields: fields,
+                },
+            },
+
+		},
+	}); err != nil { log.Panic(err) }
 }
 
 // Command: poäng
@@ -232,8 +389,8 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
 	defer rows.Close()
 	if err != nil { log.Panic(err) }
 
-	str := ""
-	pos := 1
+	top10 := ""
+	pos := 0
 
 	for rows.Next() {
 		var (
@@ -243,14 +400,13 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
 
 		rows.Scan(&uid, &season)
 		user, _ := s.User(strconv.Itoa(uid))
+        pos++
 
-		str += fmt.Sprintf("#%v **%v** med %v poäng\n", pos, user.Username, season)
+		top10 += fmt.Sprintf("#%v **%v** med %v poäng\n", pos, user.Username, season)
 	}
 
-	str += "--------------\n"
-
 	uPoints := 0
-	if err := betsDB.QueryRow("SELECT season FROM points WHERE uid=?", i.Member.User.ID).Scan(&uPoints); err != nil {
+	if err := betsDB.QueryRow("SELECT season FROM points WHERE uid=?", getInteractUID(i)).Scan(&uPoints); err != nil {
 		if err == sql.ErrNoRows {
 			// skip
 		} else {
@@ -258,25 +414,109 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
 		}
 	}
 
-	str += fmt.Sprintf("Dina poäng i år: %v", uPoints)
+	userPoints := fmt.Sprintf("Du har samlat ihop **%v** poäng i år!", uPoints)
 
-    msgStdInteractionResponse(s, i, str)
+	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
+		Type: dg.InteractionResponseChannelMessageWithSource,
+		Data: &dg.InteractionResponseData {
+			Flags: 1 << 6, // Ephemeral
+			Content: "",
+            Embeds: []*dg.MessageEmbed {
+                {
+                    Title:     "Poäng",
+                    Description: userPoints,
+                    Fields: []*dg.MessageEmbedField {
+                        {
+                            Name: "Top 10",
+                            Value: top10,
+                        },
+                    },
+                },
+            },
+
+		},
+	}); err != nil { log.Panic(err) }
 }
 
 // Command: sammanfatta
 func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
-	if isOwner(i) {
-        msgStdInteractionResponse(s, i, "Sammanfatta")
-	} else {
+	if !isOwner(i) {
         msgStdInteractionResponse(s, i, "Du har inte rättigheter att köra detta kommando.")
+        return
 	}
+
+	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
+	defer svffDB.Close()
+	if err != nil { log.Fatal(err) }
+
+	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
+	defer betsDB.Close()
+	if err != nil { log.Fatal(err) }
+
+	today := time.Now().Format("2006-01-02")
+
+    round := -1
+    err = svffDB.QueryRow("SELECT round FROM matches WHERE date(date)>=? AND finished='0' ORDER BY date", today).Scan(&round)
+    if err != nil { log.Panic(err) }
+
+    var matches []match
+    matchesRows, err := svffDB.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE round=?", round)
+    if err != nil { log.Panic(err) }
+
+    won, lost := 0, 0
+    err = betsDB.QueryRow("SELECT COUNT(id) FROM bets WHERE round=? AND won=1 AND handled=1", round).Scan(&lost)
+    if err != nil { log.Panic(err) }
+    err = betsDB.QueryRow("SELECT COUNT(id) FROM bets WHERE round=? AND won=0 AND handled=1", round).Scan(&won)
+    if err != nil { log.Panic(err) }
+
+    var bets []bet
+    wins := make(map[int]int)
+
+    for matchesRows.Next() {
+        var m match
+        matchesRows.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished)
+        matches = append(matches, m)
+
+        betsRows, err := betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore, won FROM bets WHERE matchid=?", m.id)
+        if err != nil { log.Panic(err) }
+
+        for betsRows.Next() {
+            var b bet
+            betsRows.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.won)
+            bets = append(bets, b)
+
+            if b.won == 1 {
+                wins[b.uid]++
+            }
+        }
+    }
+
+    // Top three wins
+    topThree := "Dom med flest vinster är:\n"
+    keys := make([]int, 0, len(wins))
+    for k := range wins {
+        keys = append(keys, k)
+    }
+
+    sort.Ints(keys)
+
+    for i, k := range keys {
+        if i <= 3 {
+            username, _ := s.User(strconv.Itoa(k))
+            topThree += fmt.Sprintf("#%v - %v med %v vinster\n", i + 1, username.Username, wins[k])
+        }
+    }
+
+    msg := fmt.Sprintf("Denna omgång spelades **%v** matcher och **%v** vadslagningar las.\n\n", len(matches), len(bets))
+    msg += fmt.Sprintf("**%v**:st vann sina vad medans **%v**:st förlorade.\n\n", won, lost)
+    msg += topThree
+
+    msgStdInteractionResponse(s, i, msg)
 }
 
 // Command: info
 func infoCommand(s *dg.Session, i *dg.InteractionCreate) {
-    str := "Jag är en bot gjord i Go med hjälp av [discordgo](https://github.com/bwmarrin/discordgo) paketet. Min källkod finns på [Github](https://github.com/r0x57n/allsvenskanBets)." +
-           "\n\n" +
-           "*v." + VERSION + "*"
+    str := "Jag är en bot gjord i Go med hjälp av [discordgo](https://github.com/bwmarrin/discordgo) paketet. Min källkod finns på [Github](https://github.com/r0x57n/allsvenskanBets)."
 
 	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {
 		Type: dg.InteractionResponseChannelMessageWithSource,
@@ -287,6 +527,9 @@ func infoCommand(s *dg.Session, i *dg.InteractionCreate) {
                 {
                     Title:     "Hej!",
                     Description: str,
+                    Footer: &dg.MessageEmbedFooter {
+                        Text: "v" + VERSION,
+                    },
                 },
             },
 
@@ -307,6 +550,22 @@ func checkBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
 /*
  Helper functions
 */
+
+func getInteractUID(i *dg.InteractionCreate) string {
+    uid := ""
+
+    if i.Interaction.Member == nil {
+        uid = i.Interaction.User.ID
+    } else {
+        uid = i.Interaction.Member.User.ID
+    }
+
+    if uid == "" {
+        log.Panic("Couldn't get user ID.")
+    }
+
+    return uid
+}
 
 func getScoreMenuOptions(matchID int, defScore int) []dg.SelectMenuOption {
 	scores := []dg.SelectMenuOption {}
@@ -347,7 +606,7 @@ func getCommandsAsChoices(s *dg.Session) []*dg.ApplicationCommandOptionChoice {
 }
 
 func isOwner(i *dg.InteractionCreate) bool {
-	if i.Member.User.ID == strconv.Itoa(OWNER) {
+	if getInteractUID(i) == strconv.Itoa(OWNER) {
 		return true
 	}
 
@@ -453,8 +712,9 @@ func getRoundMatchesAsOptions(value ...string) *[]dg.SelectMenuOption {
 	if len(matches) == 0 {
 		options = append(options, dg.SelectMenuOption{
 			Label: "Inga matcher tillgängliga... :(",
-			Value: "",
+			Value: "noMatches",
 			Description: "",
+            Default: true,
 		})
 	} else {
 		for _, m := range matches {
@@ -465,11 +725,12 @@ func getRoundMatchesAsOptions(value ...string) *[]dg.SelectMenuOption {
             }
 
             datetime, _ := time.Parse(TIME_LAYOUT, m.date)
+            daysUntil := math.Round(time.Until(datetime).Hours() / 24)
 
             options = append(options, dg.SelectMenuOption{
                 Label: fmt.Sprintf("%v vs %v", m.homeTeam, m.awayTeam),
                 Value: val,
-                Description: datetime.Format("2006-02-01 kl. 15:04"),
+                Description: fmt.Sprintf("om %v dagar (%v)", daysUntil, datetime.Format("2006-02-01 kl. 15:04")),
             })
 		}
 	}
@@ -477,6 +738,27 @@ func getRoundMatchesAsOptions(value ...string) *[]dg.SelectMenuOption {
     return &options
 }
 
+func getPointsOptions(values string, maxPoints int) *[]dg.SelectMenuOption {
+    options := []dg.SelectMenuOption{}
+
+    if maxPoints != 0 {
+        for i := 1; i <= maxPoints; i++ {
+            options = append(options, dg.SelectMenuOption{
+                Label: fmt.Sprintf("%v Poäng", i),
+                Value: fmt.Sprintf("%v_%v", values, i),
+                Description: "",
+            })
+        }
+    } else {
+        options = append(options, dg.SelectMenuOption{
+            Label: fmt.Sprintf("Du har inga poäng :("),
+            Value: "none",
+            Description: "",
+        })
+    }
+
+    return &options
+}
 
 /*
   Initialization
@@ -550,10 +832,17 @@ func main() {
 	s := initializeBot()
 	defer s.Close()
 
-	// Check the bets on a timed interval
-	c := cron.New()
-	c.AddFunc("@every 30m", checkUnhandledBets)
-	c.Start()
+    c := cron.New()
+    if CHECK_BETS_INTERVAL != "" {
+        // Check the bets on a timed interval
+        c.AddFunc("@every " + CHECK_BETS_INTERVAL, checkUnhandledBets)
+        log.Printf("Checking bets every %v", CHECK_BETS_INTERVAL)
+    }
+    if CHECK_CHALL_INTERVAL != "" {
+        /*c.AddFunc("@every " + CHECK_CHALL_INTERVAL, checkUnhandledChallenges())*/
+        log.Printf("Checking challenges every %v", CHECK_CHALL_INTERVAL)
+    }
+    c.Start()
 
 	// Wait for stop signal
 	stop := make(chan os.Signal, 1)

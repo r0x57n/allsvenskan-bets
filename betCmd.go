@@ -20,7 +20,7 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
 	if err != nil { log.Fatal(err) }
 
     matchidToBet := make(map[string]bet)
-    uid := i.Interaction.Member.User.ID
+    uid := getInteractUID(i)
     betsRows, err := betsDB.Query("SELECT matchid, homeScore, awayScore FROM bets WHERE handled=0 AND uid=?", uid)
     if err != nil { log.Panic(err) }
 
@@ -32,11 +32,17 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
         matchidToBet[strconv.Itoa(b.matchid)] = b
     }
 
-    if len(matchidToBet) > 0 {
-        for i, elem := range *options {
+    disabled := false
 
-            b := matchidToBet[elem.Value]
-            (*options)[i].Label += fmt.Sprintf(" [%v-%v]", b.homeScore, b.awayScore)
+    if (*options)[0].Label == "Inga matcher tillgängliga... :(" {
+        disabled = true
+    } else {
+        if len(matchidToBet) > 0 {
+            for i, elem := range *options {
+
+                b := matchidToBet[elem.Value]
+                (*options)[i].Label += fmt.Sprintf(" [%v-%v]", b.homeScore, b.awayScore)
+            }
         }
     }
 
@@ -47,6 +53,7 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
                     Placeholder: "Välj en match",
                     CustomID: "betOnSelected", // component handler
                     Options: *options,
+                    Disabled: disabled,
                 },
             },
         },
@@ -67,7 +74,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
     var msg string
     var components []dg.MessageComponent
 	matchID, _ := strconv.Atoi(i.MessageComponentData().Values[0])
-	uID := i.Interaction.Member.User.ID
+	uID := getInteractUID(i)
 
     // Get earlier bet info, if any
     defHome, defAway := -1, -1
@@ -122,15 +129,19 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
-	db, err := sql.Open(DB_TYPE, BETS_DB)
-	defer db.Close()
+	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
+	defer svffDB.Close()
+	if err != nil { log.Fatal(err) }
+
+	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
+	defer betsDB.Close()
 	if err != nil { log.Fatal(err) }
 
 	data := i.MessageComponentData().Values[0]
 	var splitted = strings.Split(data, "_")
 	var (
 		matchID = splitted[0]
-		uID = i.Interaction.Member.User.ID
+		uID = getInteractUID(i)
 		home = "0"
 		away = "0"
 	)
@@ -141,7 +152,10 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
 		default: log.Panic("This shouldn't happen...")
 	}
 
-	rows, err := db.Query("SELECT * FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID)
+    round := -1
+    err = svffDB.QueryRow("SELECT round FROM matches WHERE matchid=?", matchID).Scan(&round)
+
+	rows, err := betsDB.Query("SELECT * FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID)
 	defer rows.Close()
 	if err != nil { log.Fatal(err) }
 
@@ -149,15 +163,15 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
 	if rows.Next() {
 		if where == Home {
 			rows.Close()
-			if _, err := db.Exec("UPDATE bets SET homeScore=? WHERE (uid, matchid) IS (?, ?)", home, uID, matchID); err != nil { log.Panic(err) }
+			if _, err := betsDB.Exec("UPDATE bets SET homeScore=? WHERE (uid, matchid) IS (?, ?)", home, uID, matchID); err != nil { log.Panic(err) }
 		} else {
 			rows.Close()
-			if _, err := db.Exec("UPDATE bets SET awayScore=? WHERE (uid, matchid) IS (?, ?)", away, uID, matchID); err != nil { log.Panic(err) }
+			if _, err := betsDB.Exec("UPDATE bets SET awayScore=? WHERE (uid, matchid) IS (?, ?)", away, uID, matchID); err != nil { log.Panic(err) }
 		}
 	// No prior bet
 	} else {
 		rows.Close()
-		if _, err := db.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore) VALUES (?, ?, ?, ?)", uID, matchID, home, away); err != nil { log.Panic(err) }
+		if _, err := betsDB.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore, round) VALUES (?, ?, ?, ?, ?)", uID, matchID, home, away, round); err != nil { log.Panic(err) }
 	}
 
 	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {

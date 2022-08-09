@@ -19,7 +19,7 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
 	defer betsDB.Close()
 	if err != nil { log.Fatal(err) }
 
-    uid := i.Interaction.Member.User.ID
+    uid := getInteractUID(i)
     var bets []bet
     betsRows, err := betsDB.Query("SELECT id, uid, matchid, homeScore, awayScore FROM bets WHERE uid=? AND handled=0", uid)
     defer betsRows.Close()
@@ -59,7 +59,7 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
         }
     } else {
         options = append(options, dg.SelectMenuOption{
-            Label: "Inga vadslagningar...",
+            Label: "Inga framtida vadslagningar...",
             Value: "invalid",
             Description: "",
             Default: true,
@@ -80,7 +80,7 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
         },
     }
 
-    compInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, "Dina vadslagningar:", components)
+    compInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, "Dina vadslagningar", components)
 }
 
 func regretSelected(s *dg.Session, i *dg.InteractionCreate) {

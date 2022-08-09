@@ -19,6 +19,10 @@ var (
             Description: "Slå vad om en kommande match.",
         },
         {
+            Name: "ångra",
+            Description: "Ta bort ett vad som du gjort, om utmaning måste andra användaren också acceptera.",
+        },
+        {
             Name: "utmana",
             Description: "Utmana en annan användare om en kommande match.",
             Options: []*dg.ApplicationCommandOption {
@@ -43,12 +47,12 @@ var (
             },
         },
         {
-            Name: "kommande",
-            Description: "Lista dina kommande vadslagningar.",
+            Name: "fegaur",
+            Description: "Dra dig tillbaka från en utmaning.",
         },
         {
-            Name: "ångra",
-            Description: "Ta bort ett vad som du gjort, om utmaning måste andra användaren också acceptera.",
+            Name: "kommande",
+            Description: "Lista dina kommande vadslagningar.",
         },
         {
             Name: "tidigare",
@@ -111,9 +115,10 @@ var (
         // User commands
         "hjälp": func(s *dg.Session, i *dg.InteractionCreate)         {   helpCommand(s, i, &COMMANDS)    },
         "slåvad": func(s *dg.Session, i *dg.InteractionCreate)        {   betCommand(s, i)                },
-        "utmana": func(s *dg.Session, i *dg.InteractionCreate)        {   challengeCommand(s, i)          },
-        "kommande": func(s *dg.Session, i *dg.InteractionCreate)      {   upcomingCommand(s, i)           },
         "ångra": func(s *dg.Session, i *dg.InteractionCreate)         {   regretCommand(s, i)             },
+        "utmana": func(s *dg.Session, i *dg.InteractionCreate)        {   challengeCommand(s, i)          },
+        "fegaur": func(s *dg.Session, i *dg.InteractionCreate)        {   chickenCommand(s, i)            },
+        "kommande": func(s *dg.Session, i *dg.InteractionCreate)      {   upcomingCommand(s, i)           },
         "tidigare": func(s *dg.Session, i *dg.InteractionCreate)      {   earlierCommand(s, i)            },
         "poäng": func(s *dg.Session, i *dg.InteractionCreate)         {   pointsCommand(s, i)             },
         "inställningar": func(s *dg.Session, i *dg.InteractionCreate) {   settingsCommand(s, i)           },
@@ -128,16 +133,20 @@ var (
 
     // Component handlers
     COMPONENT_HANDLERS = map[string]func(s *dg.Session, i *dg.InteractionCreate) {
-        "betOnSelected": func(s *dg.Session, i *dg.InteractionCreate)      {   betOnSelected(s, i)              },
-        "betScoreHome": func(s *dg.Session, i *dg.InteractionCreate)       {   betScoreComponent(s, i, Home)    },
-        "betScoreAway": func(s *dg.Session, i *dg.InteractionCreate)       {   betScoreComponent(s, i, Away)    },
-        "challSelectWinner": func(s *dg.Session, i *dg.InteractionCreate)  {   challSelectWinner(s, i)          },
-        "challSelectPoints": func(s *dg.Session, i *dg.InteractionCreate)  {   challSelectPoints(s, i)          },
-        "challAcceptDiscard": func(s *dg.Session, i *dg.InteractionCreate) {   challAcceptDiscard(s, i)         },
-        "settingsVisibility": func(s *dg.Session, i *dg.InteractionCreate) {   settingsVisibility(s, i)         },
-        "settingsChall": func(s *dg.Session, i *dg.InteractionCreate)      {   settingsChall(s, i)              },
-        "updateCommandDo": func(s *dg.Session, i *dg.InteractionCreate)    {   updateCommandDo(s, i, &COMMANDS) },
-        "deleteCommandDo": func(s *dg.Session, i *dg.InteractionCreate)    {   deleteCommandDo(s, i)            },
-        "regretSelected": func(s *dg.Session, i *dg.InteractionCreate)     {   regretSelected(s, i)             },
+        "betOnSelected": func(s *dg.Session, i *dg.InteractionCreate)           {   betOnSelected(s, i)              },
+        "betScoreHome": func(s *dg.Session, i *dg.InteractionCreate)            {   betScoreComponent(s, i, Home)    },
+        "betScoreAway": func(s *dg.Session, i *dg.InteractionCreate)            {   betScoreComponent(s, i, Away)    },
+        "challSelectWinner": func(s *dg.Session, i *dg.InteractionCreate)       {   challSelectWinner(s, i)          },
+        "challSelectPoints": func(s *dg.Session, i *dg.InteractionCreate)       {   challSelectPoints(s, i)          },
+        "challAcceptDiscard": func(s *dg.Session, i *dg.InteractionCreate)      {   challAcceptDiscard(s, i)         },
+        "challAcceptDiscardDo": func(s *dg.Session, i *dg.InteractionCreate)    {   challAcceptDiscardDo(s, i)       },
+        "settingsVisibility": func(s *dg.Session, i *dg.InteractionCreate)      {   settingsVisibility(s, i)         },
+        "settingsChall": func(s *dg.Session, i *dg.InteractionCreate)           {   settingsChall(s, i)              },
+        "updateCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   updateCommandDo(s, i, &COMMANDS) },
+        "deleteCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   deleteCommandDo(s, i)            },
+        "regretSelected": func(s *dg.Session, i *dg.InteractionCreate)          {   regretSelected(s, i)             },
+        "challAnswer": func(s *dg.Session, i *dg.InteractionCreate)             {   challAnswer(s, i)                },
+        "chickenSelected": func(s *dg.Session, i *dg.InteractionCreate)         {   chickenSelected(s, i)            },
+        "chickenAnswer": func(s *dg.Session, i *dg.InteractionCreate)           {   chickenAnswer(s, i)              },
     }
 )

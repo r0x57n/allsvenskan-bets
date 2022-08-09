@@ -80,6 +80,41 @@ func checkUnhandledBets() {
 	}
 }
 
+func checkUnhandledChallenges() {
+	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
+	defer svffDB.Close()
+	if err != nil { log.Fatal(err) }
+
+	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
+	defer betsDB.Close()
+	if err != nil { log.Fatal(err) }
+
+    log.Printf("Checking for unhandled challenges...")
+
+    // status: 0->unhandled, 1->sent request, 2->accepted, 3->declined
+    challRows, err := betsDB.Query("SELECT id, challengerUID, challengedUID, type, matchID, points, condition, status FROM challenges WHERE status='0'")
+    defer challRows.Close()
+	if err != nil { log.Panic(err) }
+
+    var challs []challenge
+    for challRows.Next() {
+        var c challenge
+
+        challRows.Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
+        challs = append(challs, c)
+    }
+
+    if len(challs) == 0 {
+        return
+    }
+
+    //for _, c := range challs {
+
+    //}
+
+    log.Printf("Handled all challenges...")
+}
+
 func addPoints(b bet, points int) {
 	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
 	defer betsDB.Close()

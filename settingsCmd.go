@@ -3,16 +3,16 @@ package main
 import (
     "fmt"
     "log"
-	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
-	dg "github.com/bwmarrin/discordgo"
+    "database/sql"
+    _ "github.com/mattn/go-sqlite3"
+    dg "github.com/bwmarrin/discordgo"
 )
 
 // Command: inställningar
 func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
     msg := "Inställningar för ditt konto."
 
-    u := getUser(i.Interaction.Member.User.ID)
+    u := getUser(getInteractUID(i))
 
     visibOptions := []dg.SelectMenuOption{
                     {
@@ -117,14 +117,14 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
-	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-	defer betsDB.Close()
-	if err != nil { log.Fatal(err) }
+    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
+    defer betsDB.Close()
+    if err != nil { log.Fatal(err) }
 
     vals := i.Interaction.MessageComponentData().Values
     if len(vals) == 0 { log.Panic("No options passed...") }
 
-    uID := fmt.Sprint(i.Interaction.Member.User.ID)
+    uID := fmt.Sprint(getInteractUID(i))
 
     u := getUser(uID)
 
@@ -134,14 +134,14 @@ func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
-	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-	defer betsDB.Close()
-	if err != nil { log.Fatal(err) }
+    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
+    defer betsDB.Close()
+    if err != nil { log.Fatal(err) }
 
     vals := i.Interaction.MessageComponentData().Values
     if len(vals) == 0 { log.Panic("No options passed...") }
 
-    u := getUser(fmt.Sprint(i.Interaction.Member.User.ID))
+    u := getUser(fmt.Sprint(getInteractUID(i)))
 
     _, err = betsDB.Exec("UPDATE points SET interactable=? WHERE uid=?", vals[0], u.uid)
 
