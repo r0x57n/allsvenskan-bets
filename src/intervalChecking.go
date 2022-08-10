@@ -83,8 +83,7 @@ func checkUnhandledChallenges() {
 
     log.Printf("Checking for unhandled challenges...")
 
-    // status: 0->unhandled, 1->sent request, 2->accepted, 3->declined
-    challRows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE status='0'")
+    challRows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE status=?", Unhandled)
     defer challRows.Close()
 	if err != nil { log.Panic(err) }
 

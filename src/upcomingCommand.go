@@ -16,12 +16,11 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 	defer db.Close()
 	if err != nil { log.Fatal(err) }
 
-	uID := getInteractUID(i)
+	uid := getInteractUID(i)
 
-	bets, _ := db.Query("SELECT id, uid, matchid, homeScore, awayScore FROM bets WHERE uid=? AND handled=0", uID)
-	defer bets.Close()
-
-	var b bet
+	betRows, err := db.Query("SELECT id, uid, matchid, homeScore, awayScore FROM bets WHERE uid=? AND handled=0", uid)
+    if err != nil { log.Panic(err) }
+	defer betRows.Close()
 
     type temp struct {
         homeTeam string
@@ -34,17 +33,17 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 	userBets := ""
     matches := make(map[float64][]temp)
 
-	for bets.Next() {
-		bets.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore)
-		matchRow := db.QueryRow("SELECT homeTeam, awayTeam, date FROM matches WHERE id=?", b.matchid)
+	for betRows.Next() {
+        var b bet
+		betRows.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore)
 
 		var m match
-		matchRow.Scan(&m.homeTeam, &m.awayTeam, &m.date)
+		err := db.QueryRow("SELECT homeTeam, awayTeam, date FROM matches WHERE id=?", b.matchid).Scan(&m.homeTeam, &m.awayTeam, &m.date)
+        if err != nil { log.Panic(err) }
 
 		date, _ := time.Parse(TIME_LAYOUT, m.date)
 		daysUntil := math.Round(time.Until(date).Hours() / 24)
 
-		//userBets = userBets + fmt.Sprintf("%v (**%v**) - %v (**%v**), spelas om %v dagar.\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore, daysUntil)
 		var t temp
         t.homeTeam = m.homeTeam
         t.awayTeam = m.awayTeam
@@ -58,29 +57,43 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     fields := []*dg.MessageEmbedField {}
 
-    for k, v := range matches {
-        str := ""
-        name := ""
+    for days, matches := range matches {
+        categoryMsg := ""
+        matchesMsg := ""
 
-        for _, e := range v {
-            str += fmt.Sprintf("%v (**%v**) vs %v (**%v**)\n", e.homeTeam, e.homeScore, e.awayTeam, e.awayScore)
+        for _, m := range matches {
+            matchesMsg += fmt.Sprintf("%v (**%v**) vs %v (**%v**)\n", m.homeTeam, m.homeScore, m.awayTeam, m.awayScore)
         }
 
-        if k == -0 {
-            name = fmt.Sprintf("Spelas nu")
+        if days == -0 {
+            categoryMsg = fmt.Sprintf("Spelas nu")
         } else {
-            name = fmt.Sprintf("%v dagar kvar", k)
+            categoryMsg = fmt.Sprintf("%v dagar kvar", days)
         }
 
         fields = append(fields, &dg.MessageEmbedField{
-            Name: name,
-            Value: str,
+            Name: categoryMsg,
+            Value: matchesMsg,
         })
     }
 
 	if betsCount == 0 {
 		userBets = "Inga vadslagningar ännu!"
 	}
+
+    challengesMsg := ""
+    challenges := *getUserChallenges(db, uid)
+
+    if len(challenges) != 0 {
+        for _, c := range challenges {
+            challengesMsg += fmt.Sprintf("%v vs %v för %v poäng\n", c.challengerUID, c.challengeeUID, c.points)
+        }
+
+        fields = append(fields, &dg.MessageEmbedField{
+            Name: "Utmaningar",
+            Value: challengesMsg,
+        })
+    }
 
     addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Kommande vad", userBets)
 }

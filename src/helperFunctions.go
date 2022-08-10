@@ -72,6 +72,25 @@ func notOwner(s *dg.Session, i *dg.InteractionCreate) bool {
 }
 
 /*
+   Common database getters
+*/
+
+func getUserChallenges(db *sql.DB, uid string) *[]challenge {
+    challRows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE (challengerUID=? OR challengeeUID=?) AND (status=?)", uid, uid, Accepted)
+    if err != nil { log.Panic(err) }
+	defer challRows.Close()
+
+    var challenges []challenge
+    for challRows.Next() {
+        var c challenge
+        challRows.Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
+        challenges = append(challenges, c)
+    }
+
+    return &challenges
+}
+
+/*
    Options builders for select menus
 */
 
