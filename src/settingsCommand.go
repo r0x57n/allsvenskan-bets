@@ -1,80 +1,43 @@
 package main
 
 import (
-    "fmt"
     "log"
-    "database/sql"
     _ "github.com/mattn/go-sqlite3"
     dg "github.com/bwmarrin/discordgo"
 )
 
 // Command: inställningar
 func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
-    msg := "Inställningar för ditt konto."
+    db := connectDB()
+    defer db.Close()
 
-    u := getUser(getInteractUID(i))
+    uid := getInteractUID(i)
+    u := getUser(db, uid)
 
-    visibOptions := []dg.SelectMenuOption{
-                    {
-                        Label: "Ja",
-                        Value: "1",
-                        Default: true,
-                    },
-                    {
-                        Label: "Nej",
-                        Value: "0",
-                    },
-    }
-
+    defOption := true
     if u.viewable == 0 {
-        visibOptions = []dg.SelectMenuOption{
-                        {
-                            Label: "Ja",
-                            Value: "1",
-                        },
-                        {
-                            Label: "Nej",
-                            Value: "0",
-                            Default: true,
-                        },
-        }
+        defOption = false
     }
 
-    interOptions := []dg.SelectMenuOption{
-                    {
-                        Label: "Ja",
-                        Value: "1",
-                        Default: true,
-                    },
-                    {
-                        Label: "Nej",
-                        Value: "0",
-                    },
-    }
+    visibilityOptions := getAcceptDiscardOptions("Ja", "Nej", defOption)
 
+    defOption = true
     if u.interactable == 0 {
-        interOptions = []dg.SelectMenuOption{
-                        {
-                            Label: "Ja",
-                            Value: "1",
-                        },
-                        {
-                            Label: "Nej",
-                            Value: "0",
-                            Default: true,
-                        },
-        }
+        defOption = false
     }
+
+    interactableOptions := getAcceptDiscardOptions("Ja", "Nej", defOption)
 
     components := []dg.MessageComponent {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     CustomID: "settingsVisibilityLabel",
-                    Placeholder: "Låt andra kunna se dina tidigare bet. \\/",
+                    Placeholder: "Låt andra kunna se dina tidigare bet",
+                    Disabled: true,
                     Options: []dg.SelectMenuOption{
                         {
-                            Label: "Låt andra kunna se dina tidigare bet. \\/",
+                            Label: "1",
                             Value: "1",
                         },
                     },
@@ -85,7 +48,7 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     CustomID: "settingsVisibility",
-                    Options: visibOptions,
+                    Options: visibilityOptions,
                 },
             },
         },
@@ -93,10 +56,11 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     CustomID: "settingsChallLabel",
-                    Placeholder: "Låt andra kunna utmana dig. \\/",
+                    Placeholder: "Låt andra kunna utmana dig",
+                    Disabled: true,
                     Options: []dg.SelectMenuOption{
                         {
-                            Label: "Låt andra kunna utmana dig. \\/",
+                            Label: "1",
                             Value: "1",
                         },
                     },
@@ -107,43 +71,42 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     CustomID: "settingsChall",
-                    Options: interOptions,
+                    Options: interactableOptions,
                 },
             },
         },
     }
 
-    addCompInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, msg, components)
+    msg := "Inställningar för ditt konto."
+    addCompInteractionResponse(s, i, NewMsg, msg, components)
 }
 
 func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
-    db, err := sql.Open(DB_TYPE, DB)
+    db := connectDB()
     defer db.Close()
-    if err != nil { log.Fatal(err) }
 
-    vals := i.Interaction.MessageComponentData().Values
-    if len(vals) == 0 { log.Panic("No options passed...") }
+    vals := getValuesOrRespond(s, i, UpdateMsg)
+    if vals == nil { return }
 
-    uID := fmt.Sprint(getInteractUID(i))
+    u := getUserFromInteraction(db, i)
 
-    u := getUser(uID)
+    _, err := db.Exec("UPDATE users SET viewable=? WHERE uid=?", vals[0], u.uid)
+    if err != nil { log.Panic(err) }
 
-    _, err = db.Exec("UPDATE users SET viewable=? WHERE uid=?", vals[0], u.uid)
-
-    addInteractionResponse(s, i, dg.InteractionResponseDeferredMessageUpdate, "")
+    ignoreInteraction(s, i)
 }
 
 func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
-    db, err := sql.Open(DB_TYPE, DB)
+    db := connectDB()
     defer db.Close()
-    if err != nil { log.Fatal(err) }
 
-    vals := i.Interaction.MessageComponentData().Values
-    if len(vals) == 0 { log.Panic("No options passed...") }
+    vals := getValuesOrRespond(s, i, UpdateMsg)
+    if vals == nil { return }
 
-    u := getUser(fmt.Sprint(getInteractUID(i)))
+    u := getUserFromInteraction(db, i)
 
-    _, err = db.Exec("UPDATE users SET interactable=? WHERE uid=?", vals[0], u.uid)
+    _, err := db.Exec("UPDATE users SET interactable=? WHERE uid=?", vals[0], u.uid)
+    if err != nil { log.Panic(err) }
 
-    addInteractionResponse(s, i, dg.InteractionResponseDeferredMessageUpdate, "")
+    ignoreInteraction(s, i)
 }

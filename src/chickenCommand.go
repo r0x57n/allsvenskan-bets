@@ -16,15 +16,7 @@ func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
     if err != nil { log.Fatal(err) }
 
     uid := getInteractUID(i)
-    var challenges []challenge
-    betsRows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE (challengerUID=? OR challengeeUID=?) AND (status=?)", uid, uid, Accepted)
-    if err != nil { log.Panic(err) }
-
-    for betsRows.Next() {
-        var c challenge
-        betsRows.Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
-        challenges = append(challenges, c)
-    }
+    challenges := *getUserChallenges(db, uid)
 
     if len(challenges) == 0 {
         addInteractionResponse(s, i, NewMsg, "Inga utmaningar gjorda!")

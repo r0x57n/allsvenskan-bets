@@ -41,7 +41,7 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 		err := db.QueryRow("SELECT homeTeam, awayTeam, date FROM matches WHERE id=?", b.matchid).Scan(&m.homeTeam, &m.awayTeam, &m.date)
         if err != nil { log.Panic(err) }
 
-		date, _ := time.Parse(TIME_LAYOUT, m.date)
+		date, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 		daysUntil := math.Round(time.Until(date).Hours() / 24)
 
 		var t temp

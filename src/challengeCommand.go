@@ -26,7 +26,7 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
     uid := getInteractUID(i)
 
     // Check if user allows challenges
-    u := getUser(challengee.ID)
+    u := getUser(db, challengee.ID)
     if u.interactable == 0 {
         addInteractionResponse(s, i, NewMsg, "Användaren tillåter inte utmaningar.")
         return
@@ -50,7 +50,7 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     msg := fmt.Sprintf("Utmana användare %v om hur följande match kommer sluta.", challengee.Username)
 
-    options := getRoundMatchesAsOptions(challengee.ID)
+    options := getRoundMatchesAsOptions(db, challengee.ID)
 
     components := []dg.MessageComponent {
         dg.ActionsRow {

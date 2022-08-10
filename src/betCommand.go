@@ -13,14 +13,19 @@ import (
 
 // Command: slåvad
 func betCommand(s *dg.Session, i *dg.InteractionCreate) {
-	db, err := sql.Open(DB_TYPE, DB)
+    db := connectDB()
 	defer db.Close()
-	if err != nil { log.Fatal(err) }
 
-	options := getRoundMatchesAsOptions()
+	options := *getRoundMatchesAsOptions(db)
+    if len(options) == 0 {
+        addInteractionResponse(s, i, NewMsg, "Inga matcher tillgängliga! :(")
+        return
+    }
 
-    matchidToBet := make(map[string]bet)
     uid := getInteractUID(i)
+
+    // map matchIDs to bets so we can easier build strings later
+    matchidToBet := make(map[string]bet)
     betsRows, err := db.Query("SELECT matchid, homeScore, awayScore FROM bets WHERE handled=0 AND uid=?", uid)
     if err != nil { log.Panic(err) }
 
@@ -30,17 +35,10 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
         matchidToBet[strconv.Itoa(b.matchid)] = b
     }
 
-    disabled := false
-
-    if (*options)[0].Label == "Inga matcher tillgängliga... :(" {
-        disabled = true
-    } else {
-        if len(matchidToBet) > 0 {
-            for i, elem := range *options {
-
-                b := matchidToBet[elem.Value]
-                (*options)[i].Label += fmt.Sprintf(" [%v-%v]", b.homeScore, b.awayScore)
-            }
+    if len(matchidToBet) > 0 {
+        for i, option := range options {
+            b := matchidToBet[option.Value]
+            options[i].Label += fmt.Sprintf(" [%v-%v]", b.homeScore, b.awayScore)
         }
     }
 
@@ -50,14 +48,13 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
                 dg.SelectMenu {
                     Placeholder: "Välj en match",
                     CustomID: "betOnSelected", // component handler
-                    Options: *options,
-                    Disabled: disabled,
+                    Options: options,
                 },
             },
         },
     }
 
-    addCompInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, "Kommande omgångens matcher:", components)
+    addCompInteractionResponse(s, i, NewMsg, "Kommande omgångens matcher:", components)
 }
 
 func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
@@ -82,7 +79,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
                  Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date)
 	if err != nil { log.Panic(err) }
 
-    datetime, err := time.Parse(TIME_LAYOUT, m.date)
+    datetime, err := time.Parse(DB_TIME_LAYOUT, m.date)
 	if err != nil { log.Panic(err) }
 
     // Make the response
@@ -90,7 +87,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
         msg = "Du kan inte betta på matcher som startat..."
         components = []dg.MessageComponent {}
     } else {
-        datetime, _ := time.Parse(TIME_LAYOUT, m.date)
+        datetime, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 
         msg = fmt.Sprintf("Hemmalag: %v\n", m.homeTeam)
         msg += fmt.Sprintf("Bortalag: %v\n\n", m.awayTeam)

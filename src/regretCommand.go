@@ -33,7 +33,7 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
         err := db.QueryRow("SELECT homeTeam, awayTeam, date, round FROM matches WHERE id=?", b.matchid).
                       Scan(&m.homeTeam, &m.awayTeam, &m.date, &m.round)
         if err != nil { log.Panic(err) }
-        datetime, _ := time.Parse(TIME_LAYOUT, m.date)
+        datetime, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 
         if time.Now().Before(datetime) {
             labels[b.id] = fmt.Sprintf("%v vs %v [%v-%v]", m.homeTeam, m.awayTeam, b.homeScore, b.awayScore)
@@ -92,7 +92,7 @@ func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
     var date string
     err = db.QueryRow("SELECT date FROM matches WHERE id=?", matchid).Scan(&date)
     if err != nil { log.Panic(err) }
-    datetime, _ := time.Parse(TIME_LAYOUT, date)
+    datetime, _ := time.Parse(DB_TIME_LAYOUT, date)
 
     components := []dg.MessageComponent {}
 
