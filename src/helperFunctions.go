@@ -11,6 +11,7 @@ import (
 	dg "github.com/bwmarrin/discordgo"
 )
 
+
 /*
  Helper functions
 */
@@ -31,24 +32,6 @@ func getInteractUID(i *dg.InteractionCreate) string {
     return uid
 }
 
-func getUser(db *sql.DB, uid string) user {
-    var u user
-
-	err := db.QueryRow("SELECT uid, seasonPoints, bank, viewable, interactable FROM users WHERE uid=?", uid).
-              Scan(&u.uid, &u.seasonPoints, &u.bank, &u.viewable, &u.interactable)
-
-	if err != nil {
-        if err == sql.ErrNoRows {
-            _, err = db.Exec("INSERT INTO users (uid) VALUES (?)", uid)
-            if err != nil { log.Panic(err) }
-        } else {
-            log.Panic(err)
-        }
-    }
-
-    return u
-}
-
 func getUserFromInteraction(db *sql.DB, i *dg.InteractionCreate) user {
     uid := fmt.Sprint(getInteractUID(i))
     return getUser(db, uid)
@@ -65,6 +48,7 @@ func notOwner(s *dg.Session, i *dg.InteractionCreate) bool {
     return false
 }
 
+
 /*
    Common database stuff (SQL)
 */
@@ -76,6 +60,24 @@ func connectDB() *sql.DB {
     }
 
     return db
+}
+
+func getUser(db *sql.DB, uid string) user {
+    var u user
+
+	err := db.QueryRow("SELECT uid, seasonPoints, bank, viewable, interactable FROM users WHERE uid=?", uid).
+              Scan(&u.uid, &u.seasonPoints, &u.bank, &u.viewable, &u.interactable)
+
+	if err != nil {
+        if err == sql.ErrNoRows {
+            _, err = db.Exec("INSERT INTO users (uid) VALUES (?)", uid)
+            if err != nil { log.Panic(err) }
+        } else {
+            log.Panic(err)
+        }
+    }
+
+    return u
 }
 
 func getCurrentRound(db *sql.DB) int {
@@ -179,6 +181,22 @@ func getBet(db *sql.DB, where string) bet {
     return b
 }
 
+func getChallenge(db *sql.DB, where string) challenge {
+    var c challenge
+
+	err := db.QueryRow("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE " + where).
+              Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
+	if err != nil {
+        if err == sql.ErrNoRows {
+            return challenge { id: -1 }
+        } else {
+            log.Panic(err)
+        }
+    }
+
+    return c
+}
+
 /*
    Helpers for select menus
 */
@@ -263,20 +281,6 @@ func getScoresAsOptions(matchID int, defScore int) *[]dg.SelectMenuOption {
 	return &options
 }
 
-func getAcceptDiscardOptions(accept string, discard string, defOption bool) []dg.SelectMenuOption {
-    return []dg.SelectMenuOption{
-        {
-            Label: accept,
-            Value: "1",
-            Default: defOption,
-        },
-        {
-            Label: discard,
-            Value: "0",
-            Default: !defOption,
-        },
-    }
-}
 
 /*
   Interaction response adders
@@ -338,9 +342,15 @@ func addCompInteractionResponse(s *dg.Session,
 	}); err != nil { log.Panic(err) }
 }
 
-func getValuesOrRespond (s *dg.Session,
-                         i *dg.InteractionCreate,
-                         typ dg.InteractionResponseType) []string {
+func getValuesOrRespond(s *dg.Session,
+                        i *dg.InteractionCreate,
+                        typ dg.InteractionResponseType) []string {
+    if i.Interaction.Type != dg.InteractionMessageComponent {
+        log.Printf("Not message component...")
+        addErrorResponse(s, i, typ, "Not message component...")
+        return nil
+    }
+
     vals := i.Interaction.MessageComponentData().Values
     if len(vals) == 0 {
         addErrorResponse(s, i, typ)
@@ -350,6 +360,26 @@ func getValuesOrRespond (s *dg.Session,
 
     return vals
 }
+
+func getOptionsOrRespond(s *dg.Session,
+                         i *dg.InteractionCreate,
+                         typ dg.InteractionResponseType) []*dg.ApplicationCommandInteractionDataOption {
+    if i.Interaction.Type != dg.InteractionApplicationCommand {
+        log.Printf("Not application command...")
+        addErrorResponse(s, i, typ, "Not application command...")
+        return nil
+    }
+
+    options := i.Interaction.ApplicationCommandData().Options
+    if len(options) == 0 {
+        log.Printf("Tried to unpack values but found none...")
+        addErrorResponse(s, i, typ, "Försökte packa upp värden utan att ha något.")
+        return nil
+    }
+
+    return options
+}
+
 
 func addErrorResponse(s *dg.Session,
                       i *dg.InteractionCreate,

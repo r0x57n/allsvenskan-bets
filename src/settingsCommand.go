@@ -19,14 +19,36 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
         defOption = false
     }
 
-    visibilityOptions := getAcceptDiscardOptions("Ja", "Nej", defOption)
+    visibilityOptions := []dg.SelectMenuOption{
+        {
+            Label: "Ja",
+            Value: "1",
+            Default: defOption,
+        },
+        {
+            Label: "Nej",
+            Value: "0",
+            Default: !defOption,
+        },
+    }
 
     defOption = true
     if u.interactable == 0 {
         defOption = false
     }
 
-    interactableOptions := getAcceptDiscardOptions("Ja", "Nej", defOption)
+    interactableOptions := []dg.SelectMenuOption{
+        {
+            Label: "Ja",
+            Value: "1",
+            Default: defOption,
+        },
+        {
+            Label: "Nej",
+            Value: "0",
+            Default: !defOption,
+        },
+    }
 
     components := []dg.MessageComponent {
         dg.ActionsRow {
