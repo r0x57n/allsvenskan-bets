@@ -13,22 +13,20 @@ import (
 
 // Command: slåvad
 func betCommand(s *dg.Session, i *dg.InteractionCreate) {
-	options := getRoundMatchesAsOptions()
-
-	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-	defer betsDB.Close()
+	db, err := sql.Open(DB_TYPE, DB)
+	defer db.Close()
 	if err != nil { log.Fatal(err) }
+
+	options := getRoundMatchesAsOptions()
 
     matchidToBet := make(map[string]bet)
     uid := getInteractUID(i)
-    betsRows, err := betsDB.Query("SELECT matchid, homeScore, awayScore FROM bets WHERE handled=0 AND uid=?", uid)
+    betsRows, err := db.Query("SELECT matchid, homeScore, awayScore FROM bets WHERE handled=0 AND uid=?", uid)
     if err != nil { log.Panic(err) }
 
     for betsRows.Next() {
         var b bet
-
         betsRows.Scan(&b.matchid, &b.homeScore, &b.awayScore)
-
         matchidToBet[strconv.Itoa(b.matchid)] = b
     }
 
@@ -63,12 +61,8 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
-	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
-	defer svffDB.Close()
-	if err != nil { log.Fatal(err) }
-
-	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-	defer betsDB.Close()
+	db, err := sql.Open(DB_TYPE, DB)
+	defer db.Close()
 	if err != nil { log.Fatal(err) }
 
     var msg string
@@ -78,13 +72,13 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
 
     // Get earlier bet info, if any
     defHome, defAway := -1, -1
-	err = betsDB.QueryRow("SELECT homeScore, awayScore FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID).
+	err = db.QueryRow("SELECT homeScore, awayScore FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID).
                  Scan(&defHome, &defAway)
     if err != nil && err != sql.ErrNoRows { log.Panic(err) }
 
     // Get match info
     var m match
-	err = svffDB.QueryRow("SELECT id, homeTeam, awayTeam, date FROM matches WHERE id=?", matchID).
+	err = db.QueryRow("SELECT id, homeTeam, awayTeam, date FROM matches WHERE id=?", matchID).
                  Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date)
 	if err != nil { log.Panic(err) }
 
@@ -129,12 +123,8 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
-	svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
-	defer svffDB.Close()
-	if err != nil { log.Fatal(err) }
-
-	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-	defer betsDB.Close()
+	db, err := sql.Open(DB_TYPE, DB)
+	defer db.Close()
 	if err != nil { log.Fatal(err) }
 
 	data := i.MessageComponentData().Values[0]
@@ -153,9 +143,9 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
 	}
 
     round := -1
-    err = svffDB.QueryRow("SELECT round FROM matches WHERE matchid=?", matchID).Scan(&round)
+    err = db.QueryRow("SELECT round FROM matches WHERE matchid=?", matchID).Scan(&round)
 
-	rows, err := betsDB.Query("SELECT * FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID)
+	rows, err := db.Query("SELECT * FROM bets WHERE (uid, matchid) IS (?, ?)", uID, matchID)
 	defer rows.Close()
 	if err != nil { log.Fatal(err) }
 
@@ -163,15 +153,15 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
 	if rows.Next() {
 		if where == Home {
 			rows.Close()
-			if _, err := betsDB.Exec("UPDATE bets SET homeScore=? WHERE (uid, matchid) IS (?, ?)", home, uID, matchID); err != nil { log.Panic(err) }
+			if _, err := db.Exec("UPDATE bets SET homeScore=? WHERE (uid, matchid) IS (?, ?)", home, uID, matchID); err != nil { log.Panic(err) }
 		} else {
 			rows.Close()
-			if _, err := betsDB.Exec("UPDATE bets SET awayScore=? WHERE (uid, matchid) IS (?, ?)", away, uID, matchID); err != nil { log.Panic(err) }
+			if _, err := db.Exec("UPDATE bets SET awayScore=? WHERE (uid, matchid) IS (?, ?)", away, uID, matchID); err != nil { log.Panic(err) }
 		}
 	// No prior bet
 	} else {
 		rows.Close()
-		if _, err := betsDB.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore, round) VALUES (?, ?, ?, ?, ?)", uID, matchID, home, away, round); err != nil { log.Panic(err) }
+		if _, err := db.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore, round) VALUES (?, ?, ?, ?, ?)", uID, matchID, home, away, round); err != nil { log.Panic(err) }
 	}
 
 	if err := s.InteractionRespond(i.Interaction, &dg.InteractionResponse {

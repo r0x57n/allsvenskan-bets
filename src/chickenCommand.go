@@ -5,19 +5,19 @@ import (
     "fmt"
     "strings"
     "strconv"
-	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
-	dg "github.com/bwmarrin/discordgo"
+    "database/sql"
+    _ "github.com/mattn/go-sqlite3"
+    dg "github.com/bwmarrin/discordgo"
 )
 
 func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
-	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-	defer betsDB.Close()
-	if err != nil { log.Fatal(err) }
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
+    if err != nil { log.Fatal(err) }
 
     uid := getInteractUID(i)
     var challenges []challenge
-    betsRows, err := betsDB.Query("SELECT id, challengerUID, challengedUID, type, matchID, points, condition, status FROM challenges WHERE (challengerUID=? OR challengedUID=?) AND (status=?)", uid, uid, Accepted)
+    betsRows, err := db.Query("SELECT id, challengerUID, challengedUID, type, matchID, points, condition, status FROM challenges WHERE (challengerUID=? OR challengedUID=?) AND (status=?)", uid, uid, Accepted)
     if err != nil { log.Panic(err) }
 
     for betsRows.Next() {
@@ -31,16 +31,16 @@ func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-	options := []dg.SelectMenuOption {}
+    options := []dg.SelectMenuOption {}
 
-	for _, c := range challenges {
+    for _, c := range challenges {
         msg := fmt.Sprintf("%v, matchvinnare %v för %v poäng", c.challengerUID, c.matchID, c.points)
 
         options = append(options, dg.SelectMenuOption{
             Label: msg,
             Value: fmt.Sprintf("%v", c.id),
         })
-	}
+    }
 
     components := []dg.MessageComponent {
         dg.ActionsRow {
@@ -58,9 +58,9 @@ func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
-	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-	defer betsDB.Close()
-	if err != nil { log.Fatal(err) }
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
+    if err != nil { log.Fatal(err) }
 
     components := []dg.MessageComponent {}
     addCompInteractionResponse(s, i, dg.InteractionResponseUpdateMessage, "Skickat förfrågan om att avbryta utmaningen.", components)
@@ -69,11 +69,11 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     uid := getInteractUID(i)
 
     var c challenge
-    err = betsDB.QueryRow("SELECT id, challengerUID, challengedUID, type, matchID, points, condition, status FROM challenges WHERE id=?", cid).
+    err = db.QueryRow("SELECT id, challengerUID, challengedUID, type, matchID, points, condition, status FROM challenges WHERE id=?", cid).
                  Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
     if err != nil { log.Panic(err) }
 
-    _, err = betsDB.Exec("UPDATE challenges SET status=? WHERE id=?", RequestForfeit, c.id)
+    _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", RequestForfeit, c.id)
 
     contactID := 0
     if id,_ := strconv.Atoi(uid); id == c.challengerUID {
@@ -114,9 +114,9 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
-	betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-	defer betsDB.Close()
-	if err != nil { log.Fatal(err) }
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
+    if err != nil { log.Fatal(err) }
 
     vals := i.MessageComponentData().Values
 
@@ -126,7 +126,7 @@ func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
 
     challenger, challengee := 0, 0
     points := 0
-    err = betsDB.QueryRow("SELECT challengerUID, challengedUID, points FROM challenges WHERE id=?", cid).Scan(&challenger, &challengee, &points)
+    err = db.QueryRow("SELECT challengerUID, challengedUID, points FROM challenges WHERE id=?", cid).Scan(&challenger, &challengee, &points)
 
     msgChicken := ""
     msgAcceptor := ""
@@ -134,16 +134,16 @@ func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
         msgChicken = fmt.Sprintf("Din förfrågan om att fega ur har blivit accepterad.")
         msgAcceptor = fmt.Sprintf("Skickar bekräftelse till fegisen.")
 
-        _, err = betsDB.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challenger)
+        _, err = db.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challenger)
         if err != nil { log.Panic(err) }
-        _, err = betsDB.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challengee)
+        _, err = db.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challengee)
         if err != nil { log.Panic(err) }
-        _, err = betsDB.Exec("UPDATE challenges SET status=? WHERE id=?", Forfeited, cid)
+        _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", Forfeited, cid)
         if err != nil { log.Panic(err) }
     } else if answ == "decline" {
         msgChicken = fmt.Sprintf("Din förfrågan om att fega ur har blivit nekad.")
         msgAcceptor = fmt.Sprintf("Du har nekat fegisens förfrågan.")
-        _, err = betsDB.Exec("UPDATE challenges SET status=? WHERE id=?", Accepted, cid)
+        _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", Accepted, cid)
         if err != nil { log.Panic(err) }
     }
 

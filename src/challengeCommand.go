@@ -11,8 +11,8 @@ import (
 )
 
 func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
-    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-    defer betsDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     if len(i.Interaction.ApplicationCommandData().Options) != 2 {
@@ -38,7 +38,7 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
     }
 
     oldBet := 0
-    err = betsDB.QueryRow("SELECT id FROM challenges WHERE challengedUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited).Scan(&oldBet)
+    err = db.QueryRow("SELECT id FROM challenges WHERE challengedUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited).Scan(&oldBet)
     if err != nil {
         if err != sql.ErrNoRows { log.Panic(err) }
     }
@@ -68,12 +68,8 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
-    svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
-    defer svffDB.Close()
-    if err != nil { log.Fatal(err) }
-
-    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-    defer betsDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     // Parsing values
@@ -93,7 +89,7 @@ func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
     // Do things
     var m match
 
-    err = svffDB.QueryRow("SELECT id, homeTeam, awayTeam, date FROM matches WHERE id=?", matchID).Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date)
+    err = db.QueryRow("SELECT id, homeTeam, awayTeam, date FROM matches WHERE id=?", matchID).Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date)
     if err != nil { log.Panic(err) }
 
     val := challengee.ID + "_" + matchID + "_"
@@ -126,8 +122,8 @@ func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
 
 // Value strings comes in as challengeeID_matchID_winnerTeam
 func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
-    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-    defer betsDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     // Parsing values
@@ -142,10 +138,10 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
     uid := getInteractUID(i)
 
     challengerPoints, challengeePoints, maxPoints := 0, 0, 0
-    err = betsDB.QueryRow("SELECT season FROM points WHERE uid=?", uid).Scan(&challengerPoints)
+    err = db.QueryRow("SELECT season FROM points WHERE uid=?", uid).Scan(&challengerPoints)
     if err != nil { log.Panic(err) }
 
-    err = betsDB.QueryRow("SELECT season FROM points WHERE uid=?", challengee.ID).Scan(&challengeePoints)
+    err = db.QueryRow("SELECT season FROM points WHERE uid=?", challengee.ID).Scan(&challengeePoints)
     if err != nil { log.Panic(err) }
 
     if challengerPoints < challengeePoints {
@@ -190,8 +186,8 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
-    svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
-    defer svffDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     // Parsing values
@@ -209,10 +205,10 @@ func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
     teamName := ""
 
     if winnerTeam == "homeTeam" {
-        err = svffDB.QueryRow("SELECT homeTeam FROM matches WHERE id=?", matchID).Scan(&teamName)
+        err = db.QueryRow("SELECT homeTeam FROM matches WHERE id=?", matchID).Scan(&teamName)
         if err != nil { log.Panic(err) }
     } else {
-        err = svffDB.QueryRow("SELECT awayTeam FROM matches WHERE id=?", matchID).Scan(&teamName)
+        err = db.QueryRow("SELECT awayTeam FROM matches WHERE id=?", matchID).Scan(&teamName)
         if err != nil { log.Panic(err) }
     }
 
@@ -248,8 +244,8 @@ func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
-    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-    defer betsDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     // Parsing values
@@ -273,10 +269,10 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     winnerTeam := splitted[2]
     points := splitted[3]
 
-    _, err = betsDB.Exec("UPDATE points SET season=season - ? WHERE uid=?", points, uid)
+    _, err = db.Exec("UPDATE points SET season=season - ? WHERE uid=?", points, uid)
     if err != nil { log.Fatal(err) }
 
-    res, err := betsDB.Exec("INSERT INTO challenges (challengerUID, challengedUID, type, matchID, points, condition) VALUES (?, ?, ?, ?, ?, ?)",
+    res, err := db.Exec("INSERT INTO challenges (challengerUID, challengedUID, type, matchID, points, condition) VALUES (?, ?, ?, ?, ?, ?)",
                          uid, challengee.ID, 0, matchID, points, winnerTeam)
     if err != nil { log.Fatal(err) }
 
@@ -292,16 +288,12 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid int, points string) {
-    svffDB, err := sql.Open(DB_TYPE, SVFF_DB)
-    defer svffDB.Close()
-    if err != nil { log.Fatal(err) }
-
-    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-    defer betsDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     var m match
-    err = svffDB.QueryRow("SELECT homeTeam, awayTeam FROM matches WHERE id=?", cid).Scan(&m.homeTeam, &m.awayTeam)
+    err = db.QueryRow("SELECT homeTeam, awayTeam FROM matches WHERE id=?", cid).Scan(&m.homeTeam, &m.awayTeam)
     if err != nil { log.Panic(err) }
 
     msg := fmt.Sprintf("Hej!\n")
@@ -310,7 +302,7 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
     msg += fmt.Sprintf("Vill du satsa emot?\n\n")
     msg += fmt.Sprintf("*du kan stänga av utmaningar via **/inställningar** kommandot*")
 
-    _, err = betsDB.Exec("UPDATE challenges SET status=? WHERE id=?", 1, challengerID)
+    _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", 1, challengerID)
     if err != nil { log.Panic(err) }
 
     dmcid, _ := s.UserChannelCreate(challengeeID)
@@ -343,8 +335,8 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
 }
 
 func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
-    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-    defer betsDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     vals := i.MessageComponentData().Values
@@ -359,22 +351,22 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
 
     challenger, challengee := 0, 0
     points := 0
-    err = betsDB.QueryRow("SELECT challengerUID, challengedUID, points FROM challenges WHERE id=?", cid).Scan(&challenger, &challengee, &points)
+    err = db.QueryRow("SELECT challengerUID, challengedUID, points FROM challenges WHERE id=?", cid).Scan(&challenger, &challengee, &points)
 
     if answ == "accept" {
         status = 2
         msgChallenged = fmt.Sprintf("Din utmaning har blivit accepterad.")
         msgChallengee = fmt.Sprintf("Skickar bekräftelse till utmanaren.")
-        _, err = betsDB.Exec("UPDATE points SET season=season - ? WHERE uid=?", points, challengee)
+        _, err = db.Exec("UPDATE points SET season=season - ? WHERE uid=?", points, challengee)
     } else if answ == "decline" {
         status = 3
         msgChallenged = fmt.Sprintf("Din utmaning har blivit nekad.")
         msgChallengee = fmt.Sprintf("Du har nekat utmaningen.")
-        _, err = betsDB.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challenger)
+        _, err = db.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challenger)
         if err != nil { log.Panic(err) }
     }
 
-    _, err = betsDB.Exec("UPDATE challenges SET status=? WHERE id=?", status, cid)
+    _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", status, cid)
     if err != nil { log.Panic(err) }
 
     components := []dg.MessageComponent {}

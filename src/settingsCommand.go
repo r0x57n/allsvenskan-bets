@@ -117,8 +117,8 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
-    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-    defer betsDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     vals := i.Interaction.MessageComponentData().Values
@@ -128,14 +128,14 @@ func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
 
     u := getUser(uID)
 
-    _, err = betsDB.Exec("UPDATE points SET viewable=? WHERE uid=?", vals[0], u.uid)
+    _, err = db.Exec("UPDATE points SET viewable=? WHERE uid=?", vals[0], u.uid)
 
     addInteractionResponse(s, i, dg.InteractionResponseDeferredMessageUpdate, "")
 }
 
 func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
-    betsDB, err := sql.Open(DB_TYPE, BETS_DB)
-    defer betsDB.Close()
+    db, err := sql.Open(DB_TYPE, DB)
+    defer db.Close()
     if err != nil { log.Fatal(err) }
 
     vals := i.Interaction.MessageComponentData().Values
@@ -143,7 +143,7 @@ func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
 
     u := getUser(fmt.Sprint(getInteractUID(i)))
 
-    _, err = betsDB.Exec("UPDATE points SET interactable=? WHERE uid=?", vals[0], u.uid)
+    _, err = db.Exec("UPDATE points SET interactable=? WHERE uid=?", vals[0], u.uid)
 
     addInteractionResponse(s, i, dg.InteractionResponseDeferredMessageUpdate, "")
 }
