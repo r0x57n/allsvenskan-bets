@@ -21,7 +21,7 @@ const (
 	DB = "./bets.db"
 	DB_TYPE = "sqlite3"
 	TIME_LAYOUT = time.RFC3339
-    VERSION = "0.5.0" // major.minor.patch
+    VERSION = "0.6.0" // major.minor.patch
     CHECK_BETS_INTERVAL = "30m"
     CHECK_CHALL_INTERVAL = "5s"
 )
@@ -47,8 +47,10 @@ var (
 
 type cmd struct {
     name string
+    description string
     category string
-    admin int
+    admin bool
+    options []*dg.ApplicationCommandOption
 }
 
 type match struct {
@@ -159,7 +161,13 @@ func initializeBot() *dg.Session {
 
     // Update/add commands
     if *UPDATE {
-        for _, cmd := range COMMANDS {
+        for _, c := range COMMANDS {
+            cmd := dg.ApplicationCommand {
+                Name: c.name,
+                Description: c.description,
+                Options: c.options,
+            }
+
             log.Printf("Adding: %v", cmd.Name)
 
             _, err := s.ApplicationCommandCreate(*APP_ID, *GUILD_ID, &cmd)

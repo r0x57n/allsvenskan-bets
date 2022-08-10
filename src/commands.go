@@ -1,7 +1,7 @@
 package main
 
 import (
-	dg "github.com/bwmarrin/discordgo"
+    dg "github.com/bwmarrin/discordgo"
 )
 
 /*
@@ -9,23 +9,31 @@ Commands and handlers declarations
 */
 
 var (
-    COMMANDS = []dg.ApplicationCommand {
+    COMMANDS = []cmd {
         {
-            Name: "hjälp",
-            Description: "Få hjälp med hur denna bot fungerar.",
+            name: "hjälp",
+            description: "Få hjälp med hur denna bot fungerar.",
+            category: "Allmänt",
+            admin: false,
         },
         {
-            Name: "slåvad",
-            Description: "Slå vad om en kommande match.",
+            name: "slåvad",
+            description: "Slå vad om en kommande match.",
+            category: "Vadslagning",
+            admin: false,
         },
         {
-            Name: "ångra",
-            Description: "Ta bort ett vad som du gjort, om utmaning måste andra användaren också acceptera.",
+            name: "ångra",
+            description: "Ångra ett vad du har lagt.",
+            category: "Vadslagning",
+            admin: false,
         },
         {
-            Name: "utmana",
-            Description: "Utmana en annan användare om en kommande match.",
-            Options: []*dg.ApplicationCommandOption {
+            name: "utmana",
+            description: "Utmana en annan användare.",
+            category: "Vadslagning",
+            admin: false,
+            options: []*dg.ApplicationCommandOption {
                 {
                     Type: dg.ApplicationCommandOptionUser,
                     Name: "användarnamn",
@@ -47,17 +55,23 @@ var (
             },
         },
         {
-            Name: "fegaur",
-            Description: "Dra dig tillbaka från en utmaning.",
+            name: "fegaur",
+            description: "Be den du utmanat om att få dra tillbaka utmaningen.",
+            category: "Vadslagning",
+            admin: false,
         },
         {
-            Name: "kommande",
-            Description: "Lista dina kommande vadslagningar.",
+            name: "kommande",
+            description: "Lista dina kommande vadslagningar.",
+            category: "Vadslagning",
+            admin: false,
         },
         {
-            Name: "vadslagningar",
-            Description: "Lista en annan användares tidigare vadslagningar.",
-            Options: []*dg.ApplicationCommandOption {
+            name: "vadslagningar",
+            description: "Lista en annan användares tidigare vadslagningar.",
+            category: "Vadslagning",
+            admin: false,
+            options: []*dg.ApplicationCommandOption {
                 {
                     Type: dg.ApplicationCommandOptionUser,
                     Name: "användarnamn",
@@ -82,32 +96,46 @@ var (
             },
         },
         {
-            Name: "poäng",
-            Description: "Visa dina poäng och topp 10 på servern.",
+            name: "poäng",
+            description: "Visa dina poäng och topp 10 på servern.",
+            category: "Vadslagning",
+            admin: false,
         },
         {
-            Name: "inställningar",
-            Description: "Ställ in inställningar för din användare.",
+            name: "inställningar",
+            description: "Inställningar för din användare.",
+            category: "Allmänt",
+            admin: false,
         },
         {
-            Name: "info",
-            Description: "Teknisk info om mig.",
+            name: "info",
+            description: "Teknisk info om botten.",
+            category: "Allmänt",
+            admin: false,
         },
         {
-            Name: "sammanfatta",
-            Description: "Sammanfatta denna omgång till #bets.",
+            name: "sammanfatta",
+            description: "Sammanfatta denna omgång till #bets.",
+            category: "Admin",
+            admin: true,
         },
         {
-            Name: "update",
-            Description: "Uppdatera alla kommandon eller ett enskilt.",
+            name: "update",
+            description: "Uppdatera alla kommandon eller ett enskilt.",
+            category: "Admin",
+            admin: true,
         },
         {
-            Name: "delete",
-            Description: "Ta bort ett enskilt kommando.",
+            name: "delete",
+            description: "Ta bort ett enskilt kommando.",
+            category: "Admin",
+            admin: true,
         },
         {
-            Name: "checkbets",
-            Description: "Kollar om alla lagda bets överenstämmer med resultat.",
+            name: "checkbets",
+            description: "Kollar om alla lagda bets överenstämmer med resultat.",
+            category: "Admin",
+            admin: true,
         },
     }
 
