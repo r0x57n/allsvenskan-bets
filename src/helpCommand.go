@@ -21,29 +21,29 @@ func helpCommand(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]cmd) {
 
 	for _, cmd := range *COMMANDS {
         switch cmd.category {
-            case "Admin":
+            case Admin:
                 adminCmds += fmt.Sprintf("/%v - %v\n", cmd.name, cmd.description)
-            case "Allmänt":
+            case General:
                 generalCmds += fmt.Sprintf("/%v - %v\n", cmd.name, cmd.description)
-            case "Vadslagning":
+            case Betting:
                 bettingCmds += fmt.Sprintf("/%v - %v\n", cmd.name, cmd.description)
         }
 	}
 
     fields := []*dg.MessageEmbedField {
         {
-            Name: "Allmänt",
+            Name: General,
             Value: generalCmds,
         },
         {
-            Name: "Vadslagning",
+            Name: Betting,
             Value: bettingCmds,
         },
     }
 
     if isOwner {
         fields = append(fields, &dg.MessageEmbedField{
-            Name: "Admin",
+            Name: Admin,
             Value: adminCmds,
         })
     }

@@ -13,25 +13,25 @@ var (
         {
             name: "hjälp",
             description: "Få hjälp med hur denna bot fungerar.",
-            category: "Allmänt",
+            category: General,
             admin: false,
         },
         {
             name: "slåvad",
             description: "Slå vad om en kommande match.",
-            category: "Vadslagning",
+            category: Betting,
             admin: false,
         },
         {
             name: "ångra",
             description: "Ångra ett vad du har lagt.",
-            category: "Vadslagning",
+            category: Betting,
             admin: false,
         },
         {
             name: "utmana",
             description: "Utmana en annan användare.",
-            category: "Vadslagning",
+            category: Betting,
             admin: false,
             options: []*dg.ApplicationCommandOption {
                 {
@@ -57,19 +57,19 @@ var (
         {
             name: "fegaur",
             description: "Be den du utmanat om att få dra tillbaka utmaningen.",
-            category: "Vadslagning",
+            category: Betting,
             admin: false,
         },
         {
             name: "kommande",
             description: "Lista dina kommande vadslagningar.",
-            category: "Vadslagning",
+            category: Betting,
             admin: false,
         },
         {
             name: "vadslagningar",
             description: "Lista en annan användares tidigare vadslagningar.",
-            category: "Vadslagning",
+            category: Betting,
             admin: false,
             options: []*dg.ApplicationCommandOption {
                 {
@@ -98,43 +98,43 @@ var (
         {
             name: "poäng",
             description: "Visa dina poäng och topp 10 på servern.",
-            category: "Vadslagning",
+            category: Betting,
             admin: false,
         },
         {
             name: "inställningar",
             description: "Inställningar för din användare.",
-            category: "Allmänt",
+            category: General,
             admin: false,
         },
         {
             name: "info",
             description: "Teknisk info om botten.",
-            category: "Allmänt",
+            category: General,
             admin: false,
         },
         {
             name: "sammanfatta",
             description: "Sammanfatta denna omgång till #bets.",
-            category: "Admin",
+            category: Admin,
             admin: true,
         },
         {
             name: "update",
             description: "Uppdatera alla kommandon eller ett enskilt.",
-            category: "Admin",
+            category: Admin,
             admin: true,
         },
         {
             name: "delete",
             description: "Ta bort ett enskilt kommando.",
-            category: "Admin",
+            category: Admin,
             admin: true,
         },
         {
             name: "checkbets",
             description: "Kollar om alla lagda bets överenstämmer med resultat.",
-            category: "Admin",
+            category: Admin,
             admin: true,
         },
     }

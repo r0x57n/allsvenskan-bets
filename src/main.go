@@ -48,7 +48,7 @@ var (
 type cmd struct {
     name string
     description string
-    category string
+    category cmdCategory
     admin bool
     options []*dg.ApplicationCommandOption
 }
@@ -97,6 +97,13 @@ type user struct {
 /*
   Enums
 */
+
+type cmdCategory string
+const (
+    General = "Allmänt"
+    Betting = "Vadslagning"
+    Admin = "Admin"
+)
 
 type status int
 const (
