@@ -73,6 +73,7 @@ type bet struct {
 	awayScore int
 	handled int
     won int
+    round int
 }
 
 type challenge struct {

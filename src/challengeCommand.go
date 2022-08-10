@@ -50,7 +50,7 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     msg := fmt.Sprintf("Utmana användare %v om hur följande match kommer sluta.", challengee.Username)
 
-    options := getRoundMatchesAsOptions(db, challengee.ID)
+    options := getCurrentMatchesAsOptions(db, challengee.ID)
 
     components := []dg.MessageComponent {
         dg.ActionsRow {

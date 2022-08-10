@@ -127,6 +127,38 @@ func getMatches(db *sql.DB, where string) *[]match {
     return &matches
 }
 
+func getMatch(db *sql.DB, where string) match {
+    var m match
+
+	err := db.QueryRow("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished, round FROM matches WHERE " + where).
+              Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished, &m.round)
+	if err != nil {
+        if err == sql.ErrNoRows {
+            return match { id: -1 }
+        } else {
+            log.Panic(err)
+        }
+    }
+
+    return m
+}
+
+func getBet(db *sql.DB, where string) bet {
+    var b bet
+
+	err := db.QueryRow("SELECT id, uid, matchid, homeScore, awayScore, handled, won, round FROM bets WHERE " + where).
+              Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.handled, &b.won, &b.round)
+	if err != nil {
+        if err == sql.ErrNoRows {
+            return bet { id: -1 }
+        } else {
+            log.Panic(err)
+        }
+    }
+
+    return b
+}
+
 /*
    Helpers for select menus
 */
@@ -134,7 +166,7 @@ func getMatches(db *sql.DB, where string) *[]match {
 // Parameter is optional string to add to value of the options.
 // This is so we can add meta data about things such as challenges, we need
 // to remember who the challengee was...
-func getRoundMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMenuOption {
+func getCurrentMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMenuOption {
     options := []dg.SelectMenuOption{}
 
     round := getCurrentRound(db)
@@ -159,10 +191,13 @@ func getRoundMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMenu
 
         daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)
 
+        label := fmt.Sprintf("%v vs %v", m.homeTeam, m.awayTeam)
+        description := fmt.Sprintf("om %v dagar (%v)", daysUntilMatch, matchDate.Format(MSG_TIME_LAYOUT))
+
         options = append(options, dg.SelectMenuOption{
-            Label: fmt.Sprintf("%v vs %v", m.homeTeam, m.awayTeam),
+            Label: label,
             Value: optionValue,
-            Description: fmt.Sprintf("om %v dagar (%v)", daysUntilMatch, matchDate.Format(MSG_TIME_LAYOUT)),
+            Description: description,
         })
     }
 
@@ -210,16 +245,16 @@ func getScoresAsOptions(matchID int, defScore int) *[]dg.SelectMenuOption {
 
 func getAcceptDiscardOptions(accept string, discard string, defOption bool) []dg.SelectMenuOption {
     return []dg.SelectMenuOption{
-                    {
-                        Label: accept,
-                        Value: "1",
-                        Default: defOption,
-                    },
-                    {
-                        Label: discard,
-                        Value: "0",
-                        Default: !defOption,
-                    },
+        {
+            Label: accept,
+            Value: "1",
+            Default: defOption,
+        },
+        {
+            Label: discard,
+            Value: "0",
+            Default: !defOption,
+        },
     }
 }
 
@@ -240,7 +275,7 @@ func addInteractionResponse(s *dg.Session,
 	}); err != nil { log.Panic(err) }
 }
 
-func ignoreInteraction(s *dg.Session,
+func addNoInteractionResponse(s *dg.Session,
                        i *dg.InteractionCreate) {
     addInteractionResponse(s, i, Ignore, "")
 }
@@ -298,8 +333,9 @@ func getValuesOrRespond (s *dg.Session,
 
 func addErrorResponse(s *dg.Session,
                       i *dg.InteractionCreate,
-                      typ dg.InteractionResponseType) {
+                      typ dg.InteractionResponseType,
+                      optional ...string) {
         msg := "Oväntat fel, kontakta ägare och beskriv vad du försökte göra.\n"
-        msg += "Timestamp: " + time.Now().Format(DB_TIME_LAYOUT)
-        addCompInteractionResponse(s, i, typ, msg, []dg.MessageComponent {})
+        msg += "Timestamp: \n" + time.Now().Format(DB_TIME_LAYOUT)
+        addCompInteractionResponse(s, i, typ, msg + optional[0], []dg.MessageComponent {})
 }

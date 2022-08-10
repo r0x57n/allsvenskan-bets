@@ -93,7 +93,7 @@ func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
     _, err := db.Exec("UPDATE users SET viewable=? WHERE uid=?", vals[0], u.uid)
     if err != nil { log.Panic(err) }
 
-    ignoreInteraction(s, i)
+    addNoInteractionResponse(s, i)
 }
 
 func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
@@ -108,5 +108,5 @@ func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
     _, err := db.Exec("UPDATE users SET interactable=? WHERE uid=?", vals[0], u.uid)
     if err != nil { log.Panic(err) }
 
-    ignoreInteraction(s, i)
+    addNoInteractionResponse(s, i)
 }
