@@ -43,7 +43,7 @@ func updateCommand(s *dg.Session, i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, dg.InteractionResponseChannelMessageWithSource, "Välj kommando att uppdatera:", components)
 }
 
-func updateCommandDo(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]cmd) {
+func updateCommandDo(s *dg.Session, i *dg.InteractionCreate) {
     if notOwner(s, i) { return }
 
     components := []dg.MessageComponent {}
@@ -54,7 +54,7 @@ func updateCommandDo(s *dg.Session, i *dg.InteractionCreate, COMMANDS *[]cmd) {
     log.Printf("Updating commands...")
 
     // Update one or all commands
-    for _, c := range *COMMANDS {
+    for _, c := range COMMANDS {
         cmd := dg.ApplicationCommand {
             Name: c.name,
             Description: c.description,

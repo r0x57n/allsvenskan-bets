@@ -141,7 +141,7 @@ var (
 
     COMMAND_HANDLERS = map[string]func(s *dg.Session, i *dg.InteractionCreate) {
         // User commands
-        "hjälp": func(s *dg.Session, i *dg.InteractionCreate)         {   helpCommand(s, i, &COMMANDS)    },
+        "hjälp": func(s *dg.Session, i *dg.InteractionCreate)         {   helpCommand(s, i)               },
         "slåvad": func(s *dg.Session, i *dg.InteractionCreate)        {   betCommand(s, i)                },
         "ångra": func(s *dg.Session, i *dg.InteractionCreate)         {   regretCommand(s, i)             },
         "utmana": func(s *dg.Session, i *dg.InteractionCreate)        {   challengeCommand(s, i)          },
@@ -170,7 +170,7 @@ var (
         "challAcceptDiscardDo": func(s *dg.Session, i *dg.InteractionCreate)    {   challAcceptDiscardDo(s, i)       },
         "settingsVisibility": func(s *dg.Session, i *dg.InteractionCreate)      {   settingsVisibility(s, i)         },
         "settingsChall": func(s *dg.Session, i *dg.InteractionCreate)           {   settingsChall(s, i)              },
-        "updateCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   updateCommandDo(s, i, &COMMANDS) },
+        "updateCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   updateCommandDo(s, i)            },
         "deleteCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   deleteCommandDo(s, i)            },
         "regretSelected": func(s *dg.Session, i *dg.InteractionCreate)          {   regretSelected(s, i)             },
         "challAnswer": func(s *dg.Session, i *dg.InteractionCreate)             {   challAnswer(s, i)                },

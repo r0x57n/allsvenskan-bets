@@ -16,7 +16,7 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
 	defer db.Close()
 	if err != nil { log.Fatal(err) }
 
-	rows, err := db.Query("SELECT uid, season FROM points ORDER BY season DESC LIMIT 10")
+	rows, err := db.Query("SELECT uid, seasonPoints FROM users ORDER BY seasonPoints DESC LIMIT 10")
 	defer rows.Close()
 	if err != nil { log.Panic(err) }
 
@@ -36,8 +36,12 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
 		top10 += fmt.Sprintf("#%v **%v** med %v poäng\n", pos, user.Username, season)
 	}
 
+    if top10 == "" {
+        top10 += "Inga spelare ännu!"
+    }
+
 	uPoints := 0
-	if err := db.QueryRow("SELECT season FROM points WHERE uid=?", getInteractUID(i)).Scan(&uPoints); err != nil {
+	if err := db.QueryRow("SELECT seasonPoints FROM users WHERE uid=?", getInteractUID(i)).Scan(&uPoints); err != nil {
 		if err == sql.ErrNoRows {
 			// skip
 		} else {

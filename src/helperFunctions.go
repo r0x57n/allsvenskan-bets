@@ -38,7 +38,7 @@ func getUser(uid string) user {
 
     var u user
 
-	err = db.QueryRow("SELECT uid, season, history, viewable, interactable FROM points WHERE uid=?", uid).
+	err = db.QueryRow("SELECT uid, seasonPoints, bank, viewable, interactable FROM users WHERE uid=?", uid).
                  Scan(&u.uid, &u.season, &u.history, &u.viewable, &u.interactable)
 	if err != nil {
         if err == sql.ErrNoRows {
@@ -50,7 +50,7 @@ func getUser(uid string) user {
             u.viewable = 1
             u.interactable = 1
 
-            _, err = db.Exec("INSERT INTO points (uid, season) VALUES (?, ?)", u.uid, u.season)
+            _, err = db.Exec("INSERT INTO users (uid, seasonPoints) VALUES (?, ?)", u.uid, u.season)
             if err != nil { log.Panic(err) }
         } else {
             log.Panic(err)

@@ -17,7 +17,7 @@ func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     uid := getInteractUID(i)
     var challenges []challenge
-    betsRows, err := db.Query("SELECT id, challengerUID, challengedUID, type, matchID, points, condition, status FROM challenges WHERE (challengerUID=? OR challengedUID=?) AND (status=?)", uid, uid, Accepted)
+    betsRows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE (challengerUID=? OR challengeeUID=?) AND (status=?)", uid, uid, Accepted)
     if err != nil { log.Panic(err) }
 
     for betsRows.Next() {
@@ -69,7 +69,7 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     uid := getInteractUID(i)
 
     var c challenge
-    err = db.QueryRow("SELECT id, challengerUID, challengedUID, type, matchID, points, condition, status FROM challenges WHERE id=?", cid).
+    err = db.QueryRow("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE id=?", cid).
                  Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
     if err != nil { log.Panic(err) }
 
@@ -126,7 +126,7 @@ func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
 
     challenger, challengee := 0, 0
     points := 0
-    err = db.QueryRow("SELECT challengerUID, challengedUID, points FROM challenges WHERE id=?", cid).Scan(&challenger, &challengee, &points)
+    err = db.QueryRow("SELECT challengerUID, challengeeUID, points FROM challenges WHERE id=?", cid).Scan(&challenger, &challengee, &points)
 
     msgChicken := ""
     msgAcceptor := ""
@@ -134,9 +134,9 @@ func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
         msgChicken = fmt.Sprintf("Din förfrågan om att fega ur har blivit accepterad.")
         msgAcceptor = fmt.Sprintf("Skickar bekräftelse till fegisen.")
 
-        _, err = db.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challenger)
+        _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints + ? WHERE uid=?", points, challenger)
         if err != nil { log.Panic(err) }
-        _, err = db.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challengee)
+        _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints + ? WHERE uid=?", points, challengee)
         if err != nil { log.Panic(err) }
         _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", Forfeited, cid)
         if err != nil { log.Panic(err) }

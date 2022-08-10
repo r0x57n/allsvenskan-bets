@@ -39,7 +39,7 @@ func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
 
 	var viewable = 0
 
-	if err := db.QueryRow("SELECT viewable FROM points WHERE uid=?", uID).Scan(&viewable); err != nil {
+	if err := db.QueryRow("SELECT viewable FROM users WHERE uid=?", uID).Scan(&viewable); err != nil {
 		if err != sql.ErrNoRows { log.Panic(err) }
 	}
 

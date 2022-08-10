@@ -128,7 +128,7 @@ func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
 
     u := getUser(uID)
 
-    _, err = db.Exec("UPDATE points SET viewable=? WHERE uid=?", vals[0], u.uid)
+    _, err = db.Exec("UPDATE users SET viewable=? WHERE uid=?", vals[0], u.uid)
 
     addInteractionResponse(s, i, dg.InteractionResponseDeferredMessageUpdate, "")
 }
@@ -143,7 +143,7 @@ func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
 
     u := getUser(fmt.Sprint(getInteractUID(i)))
 
-    _, err = db.Exec("UPDATE points SET interactable=? WHERE uid=?", vals[0], u.uid)
+    _, err = db.Exec("UPDATE users SET interactable=? WHERE uid=?", vals[0], u.uid)
 
     addInteractionResponse(s, i, dg.InteractionResponseDeferredMessageUpdate, "")
 }

@@ -38,7 +38,7 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
     }
 
     oldBet := 0
-    err = db.QueryRow("SELECT id FROM challenges WHERE challengedUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited).Scan(&oldBet)
+    err = db.QueryRow("SELECT id FROM challenges WHERE challengeeUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited).Scan(&oldBet)
     if err != nil {
         if err != sql.ErrNoRows { log.Panic(err) }
     }
@@ -138,10 +138,10 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
     uid := getInteractUID(i)
 
     challengerPoints, challengeePoints, maxPoints := 0, 0, 0
-    err = db.QueryRow("SELECT season FROM points WHERE uid=?", uid).Scan(&challengerPoints)
+    err = db.QueryRow("SELECT seasonPoints FROM users WHERE uid=?", uid).Scan(&challengerPoints)
     if err != nil { log.Panic(err) }
 
-    err = db.QueryRow("SELECT season FROM points WHERE uid=?", challengee.ID).Scan(&challengeePoints)
+    err = db.QueryRow("SELECT seasonPoints FROM users WHERE uid=?", challengee.ID).Scan(&challengeePoints)
     if err != nil { log.Panic(err) }
 
     if challengerPoints < challengeePoints {
@@ -269,10 +269,10 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     winnerTeam := splitted[2]
     points := splitted[3]
 
-    _, err = db.Exec("UPDATE points SET season=season - ? WHERE uid=?", points, uid)
+    _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints - ? WHERE uid=?", points, uid)
     if err != nil { log.Fatal(err) }
 
-    res, err := db.Exec("INSERT INTO challenges (challengerUID, challengedUID, type, matchID, points, condition) VALUES (?, ?, ?, ?, ?, ?)",
+    res, err := db.Exec("INSERT INTO challenges (challengerUID, challengeeUID, type, matchID, points, condition) VALUES (?, ?, ?, ?, ?, ?)",
                          uid, challengee.ID, 0, matchID, points, winnerTeam)
     if err != nil { log.Fatal(err) }
 
@@ -351,18 +351,18 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
 
     challenger, challengee := 0, 0
     points := 0
-    err = db.QueryRow("SELECT challengerUID, challengedUID, points FROM challenges WHERE id=?", cid).Scan(&challenger, &challengee, &points)
+    err = db.QueryRow("SELECT challengerUID, challengeeUID, points FROM challenges WHERE id=?", cid).Scan(&challenger, &challengee, &points)
 
     if answ == "accept" {
         status = 2
         msgChallenged = fmt.Sprintf("Din utmaning har blivit accepterad.")
         msgChallengee = fmt.Sprintf("Skickar bekräftelse till utmanaren.")
-        _, err = db.Exec("UPDATE points SET season=season - ? WHERE uid=?", points, challengee)
+        _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints - ? WHERE uid=?", points, challengee)
     } else if answ == "decline" {
         status = 3
         msgChallenged = fmt.Sprintf("Din utmaning har blivit nekad.")
         msgChallengee = fmt.Sprintf("Du har nekat utmaningen.")
-        _, err = db.Exec("UPDATE points SET season=season + ? WHERE uid=?", points, challenger)
+        _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints + ? WHERE uid=?", points, challenger)
         if err != nil { log.Panic(err) }
     }
 
