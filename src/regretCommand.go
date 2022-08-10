@@ -5,62 +5,47 @@ import (
 	"strconv"
 	"log"
 	"time"
-	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
 	dg "github.com/bwmarrin/discordgo"
 )
 
 func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
-	db, err := sql.Open(DB_TYPE, DB)
+    db := connectDB()
 	defer db.Close()
-	if err != nil { log.Fatal(err) }
 
     uid := getInteractUID(i)
-    var bets []bet
-    betsRows, err := db.Query("SELECT id, uid, matchid, homeScore, awayScore FROM bets WHERE uid=? AND handled=0", uid)
-    defer betsRows.Close()
-    if err != nil { log.Panic(err) }
+
+    allBets := *getBets(db, fmt.Sprintf("uid=%v AND handled=%v", uid, 0))
 
     labels := make(map[int]string)
     dates := make(map[int]string)
 
-    for betsRows.Next() {
-        var b bet
-        betsRows.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore)
+    var regrettableBets []bet
 
-        var m match
+    for _, b := range allBets {
+        m := getMatch(db, fmt.Sprintf("id=%v", b.matchid))
+        matchDate, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 
-        err := db.QueryRow("SELECT homeTeam, awayTeam, date, round FROM matches WHERE id=?", b.matchid).
-                      Scan(&m.homeTeam, &m.awayTeam, &m.date, &m.round)
-        if err != nil { log.Panic(err) }
-        datetime, _ := time.Parse(DB_TIME_LAYOUT, m.date)
-
-        if time.Now().Before(datetime) {
+        if time.Now().Before(matchDate) {
             labels[b.id] = fmt.Sprintf("%v vs %v [%v-%v]", m.homeTeam, m.awayTeam, b.homeScore, b.awayScore)
-            dates[b.id] = datetime.Format("2006-02-01 kl. 15:04")
-            bets = append(bets, b)
+            dates[b.id] = matchDate.Format(MSG_TIME_LAYOUT)
+            regrettableBets = append(regrettableBets, b)
         }
     }
 
-    options := []dg.SelectMenuOption{}
-    disabled := false
+    if len(regrettableBets) == 0 {
+        addInteractionResponse(s, i, NewMsg, "Inga framtida vadslagningar...")
+        return
+    }
 
-    if len(bets) > 0 {
-        for _, b := range bets {
-            options = append(options, dg.SelectMenuOption{
-                Label: labels[b.id],
-                Value: strconv.Itoa(b.id),
-                Description: dates[b.id],
-            })
-        }
-    } else {
+    options := []dg.SelectMenuOption{}
+
+    for _, b := range regrettableBets {
         options = append(options, dg.SelectMenuOption{
-            Label: "Inga framtida vadslagningar...",
-            Value: "invalid",
-            Description: "",
-            Default: true,
+            Label: labels[b.id],
+            Value: strconv.Itoa(b.id),
+            Description: dates[b.id],
         })
-        disabled = true
     }
 
     components := []dg.MessageComponent {
@@ -68,9 +53,8 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj en vadslagning",
-                    CustomID: "regretSelected", // component handler
+                    CustomID: "regretSelected",
                     Options: options,
-                    Disabled: disabled,
                 },
             },
         },
@@ -80,28 +64,30 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
 }
 
 func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
-	db, err := sql.Open(DB_TYPE, DB)
+    db := connectDB()
 	defer db.Close()
-	if err != nil { log.Fatal(err) }
 
-    bid := i.MessageComponentData().Values[0]
+    bid := getValuesOrRespond(s, i, UpdateMsg)
+    if bid == nil { return }
 
     var matchid int
-    err = db.QueryRow("SELECT matchid FROM bets WHERE id=?", bid).Scan(&matchid)
+    err := db.QueryRow("SELECT matchid FROM bets WHERE id=?", bid[0]).Scan(&matchid)
 
     var date string
     err = db.QueryRow("SELECT date FROM matches WHERE id=?", matchid).Scan(&date)
     if err != nil { log.Panic(err) }
-    datetime, _ := time.Parse(DB_TIME_LAYOUT, date)
+
+    matchDate, err := time.Parse(DB_TIME_LAYOUT, date)
+    if err != nil { log.Panic(err) }
 
     components := []dg.MessageComponent {}
 
-    if time.Now().After(datetime) {
-        msg := "Kan inte ta bort en vadslagning för en pågåenge eller spelad match..."
+    if time.Now().After(matchDate) {
+        msg := "Kan inte ta bort en vadslagning om en pågående match..."
         addCompInteractionResponse(s, i, UpdateMsg, msg, components)
     } else {
-        _, err = db.Exec("DELETE FROM bets WHERE id=?", bid)
-        msg := "Vadslagning borttaget!"
+        _, err = db.Exec("DELETE FROM bets WHERE id=?", bid[0])
+        msg := "Vadslagning borttagen!"
         addCompInteractionResponse(s, i, UpdateMsg, msg, components)
     }
 }

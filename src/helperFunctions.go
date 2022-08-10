@@ -143,6 +143,26 @@ func getMatch(db *sql.DB, where string) match {
     return m
 }
 
+func getBets(db *sql.DB, where string) *[]bet {
+    var bets []bet
+
+	rows, err := db.Query("SELECT id, uid, matchid, homeScore, awayScore, handled, won, round FROM bets WHERE " + where)
+	defer rows.Close()
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return &bets
+        } else { log.Panic(err) }
+    }
+
+	for rows.Next() {
+        var b bet
+		if err := rows.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.handled, &b.won, &b.round); err != nil { log.Panic(err) }
+		bets = append(bets, b)
+	}
+
+    return &bets
+}
+
 func getBet(db *sql.DB, where string) bet {
     var b bet
 

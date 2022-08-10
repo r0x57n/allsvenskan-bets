@@ -62,6 +62,8 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
 	defer db.Close()
 
     values := getValuesOrRespond(s, i, UpdateMsg)
+    if values == nil { return }
+
 	mid := values[0]
 	uid := getInteractUID(i)
 
@@ -118,10 +120,11 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
     db := connectDB()
 	defer db.Close()
 
-    values := getValuesOrRespond(s, i, UpdateMsg)[0]
+    values := getValuesOrRespond(s, i, UpdateMsg)
+    if values == nil { return }
 
 	var (
-        splitted = strings.Split(values, "_")
+        splitted = strings.Split(values[0], "_")
 		mid = splitted[0]
 		uid = getInteractUID(i)
 		homeScore = "0"
