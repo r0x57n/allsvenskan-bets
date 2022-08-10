@@ -10,7 +10,7 @@ import (
 
 // Command: refresh
 func updateCommand(s *dg.Session, i *dg.InteractionCreate) {
-	if notOwner(s, i) { return }
+    if notOwner(s, i) { return }
 
     options := []dg.SelectMenuOption{
         {
