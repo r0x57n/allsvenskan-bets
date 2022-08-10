@@ -94,21 +94,6 @@ func getCurrentRound(db *sql.DB) int {
     return round
 }
 
-func getUserChallenges(db *sql.DB, uid string) *[]challenge {
-    challRows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE (challengerUID=? OR challengeeUID=?) AND (status=?)", uid, uid, Accepted)
-    if err != nil { log.Panic(err) }
-	defer challRows.Close()
-
-    var challenges []challenge
-    for challRows.Next() {
-        var c challenge
-        challRows.Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
-        challenges = append(challenges, c)
-    }
-
-    return &challenges
-}
-
 func getMatches(db *sql.DB, where string) *[]match {
     var matches []match
 
@@ -179,6 +164,26 @@ func getBet(db *sql.DB, where string) bet {
     }
 
     return b
+}
+
+func getChallenges(db *sql.DB, where string) *[]challenge {
+    var challenges []challenge
+
+	rows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE " + where)
+	defer rows.Close()
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return &challenges
+        } else { log.Panic(err) }
+    }
+
+	for rows.Next() {
+        var c challenge
+		if err := rows.Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status); err != nil { log.Panic(err) }
+		challenges = append(challenges, c)
+	}
+
+    return &challenges
 }
 
 func getChallenge(db *sql.DB, where string) challenge {
