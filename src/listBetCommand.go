@@ -80,6 +80,43 @@ func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
         desc = fmt.Sprintf("Användaren har inga vadslagningar ännu!", )
     }
 
+    rows, err = db.Query("SELECT c.challengerUID, c.challengeeUID, c.points, c.condition, " +
+                         "m.homeTeam, m.awayTeam " +
+                         "FROM challenges AS c " +
+                         "JOIN matches AS m ON c.matchID=m.id " +
+                         "WHERE (c.challengerUID=? OR c.challengeeUID=?) AND c.status=?", uid, uid, Handled)
+    defer rows.Close()
+    if err != nil { log.Panic(err) }
+
+    type challAndMatch struct {
+        c challenge
+        m match
+    }
+
+    challenges := "-"
+
+    for rows.Next() {
+        var c challenge
+        var m match
+
+        rows.Scan(&c.challengerUID, &c.challengeeUID, &c.points, &c.condition,
+                  &m.homeTeam, &m.awayTeam)
+
+        challenger, err := s.User(strconv.Itoa(c.challengerUID))
+        if err != nil { log.Panic(err) }
+        challengee, err := s.User(strconv.Itoa(c.challengeeUID))
+        if err != nil { log.Panic(err) }
+
+        winOrLose := "vinna"
+        if c.condition == "awayTeam" {
+            winOrLose = "förlora"
+        }
+
+        if challenges == "-" { challenges = "" }
+        challenges += fmt.Sprintf("**%v** utmanade **%v** om att **%v** skulle %v mot **%v** för **%v** poäng\n",
+                                    challenger.Username, challengee.Username, m.homeTeam, winOrLose, m.awayTeam, c.points)
+    }
+
     fields := []*dg.MessageEmbedField {}
 
     if listTypes == 0 {
@@ -108,6 +145,11 @@ func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
             },
         }
     }
+
+    fields = append(fields, &dg.MessageEmbedField{
+        Name: "Utmaningar",
+        Value: challenges,
+    })
 
     addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Vadslagningar", desc)
 }

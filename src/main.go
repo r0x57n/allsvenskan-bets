@@ -115,6 +115,7 @@ const (
     Declined
     RequestForfeit
     Forfeited
+    Handled
 )
 
 type BetType int
