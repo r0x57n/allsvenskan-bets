@@ -4,106 +4,107 @@ import (
 	"fmt"
 	"strconv"
 	"log"
-	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
 	dg "github.com/bwmarrin/discordgo"
 )
 
 // Command: vadslagningar
 func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
-	db, err := sql.Open(DB_TYPE, DB)
+    db := connectDB()
 	defer db.Close()
-	if err != nil { log.Fatal(err) }
 
     // Get options and parse
-    options := i.Interaction.ApplicationCommandData().Options
-	uID := options[0].Value
+    options := getOptionsOrRespond(s, i, NewMsg)
+    if options == nil { return }
+	uid := options[0].Value
 
-    betType := 2 // 0 = lost, 1 = won, 2 = all
+    listTypes := All
     if len(options) == 2 {
-        betType, _ = strconv.Atoi(fmt.Sprintf("%v", options[1].Value))
+        listTypes, _ = strconv.Atoi(fmt.Sprintf("%v", options[1].Value))
     }
 
-    // Get bets
-    var bets *sql.Rows
-    switch betType {
-        case 0:
-            bets, err = db.Query("SELECT id, uid, matchid, homeScore, awayScore, won FROM bets WHERE uid=? AND handled=1 AND won=0", uID)
-        case 1:
-            bets, err = db.Query("SELECT id, uid, matchid, homeScore, awayScore, won FROM bets WHERE uid=? AND handled=1 AND won=1", uID)
+    desc := ""
+
+    userToView := getUser(db, fmt.Sprint(uid))
+    userNotViewingThemselves := userToView.uid != getUserFromInteraction(db, i).uid
+    if userToView.viewable == 0 && userNotViewingThemselves {
+		desc := "Användaren har valt att dölja sina vadslagningar."
+        addInteractionResponse(s, i, NewMsg, desc)
+        return
+    } else if userToView.viewable == 0 && !userNotViewingThemselves {
+        desc = "Andra användare kan inte se dina vadslagningar."
+    }
+
+    where := ""
+    switch listTypes {
+        case Lost:
+            where = "uid=? AND handled=1 AND won=0"
+        case Won:
+            where = "uid=? AND handled=1 AND won=1"
+        case All:
+            where = "uid=? AND handled=1"
         default:
-            bets, err = db.Query("SELECT id, uid, matchid, homeScore, awayScore, won FROM bets WHERE uid=? AND handled=1", uID)
+            addErrorResponse(s, i, NewMsg, "Got unidentifiable listTypes in listBetsCommand.")
+            return
     }
-	if err != nil { log.Fatal(err) }
-    defer bets.Close()
 
-	var viewable = 0
+    rows, err := db.Query("SELECT b.homeScore, b.awayScore, b.matchid, b.won, m.homeTeam, m.awayTeam " +
+                          "FROM bets AS b " +
+                          "JOIN matches AS m ON b.matchid=m.id " +
+                          "WHERE " + where, uid)
+    defer rows.Close()
+    if err != nil { log.Panic(err) }
 
-	if err := db.QueryRow("SELECT viewable FROM users WHERE uid=?", uID).Scan(&viewable); err != nil {
-		if err != sql.ErrNoRows { log.Panic(err) }
-	}
+    wonBets, lostBets := "-", "-"
 
-    desc, correct, incorrect := "", "", ""
+    for rows.Next() {
+        var b bet
+        var m match
 
-	if viewable == 1 {
-		var b bet
+        rows.Scan(&b.homeScore, &b.awayScore, &b.matchid, &b.won, &m.homeTeam, &m.awayTeam)
 
-		for bets.Next() {
-			bets.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.won)
-			matchRow := db.QueryRow("SELECT homeTeam, awayTeam, date FROM matches WHERE id=?", b.matchid)
+        switch b.won {
+            case 0:
+                if lostBets == "-" { lostBets = "" }
+                lostBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
+            case 1:
+                if wonBets == "-" { wonBets = "" }
+                wonBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
+            default:
+                addErrorResponse(s, i, NewMsg, "Got unidentifiable b.won in listBetsCommand.")
+                return
+        }
+    }
 
-			var m match
-			matchRow.Scan(&m.homeTeam, &m.awayTeam, &m.date)
-
-            if b.won == 0 {
-                incorrect += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
-            } else if b.won == 1 {
-                correct += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
-            }
-		}
-
-		if correct == "" && incorrect == "" {
-			desc = fmt.Sprintf("Användaren har inga vadslagningar ännu!", )
-
-            if correct == "" {
-                correct = "-"
-            }
-
-            if incorrect == "" {
-                incorrect = "-"
-            }
-		}
-	} else {
-		desc = "Användaren har valt att dölja sina vadslagningar."
-        incorrect = "-"
-        correct = "-"
-	}
+    if wonBets == "-" && lostBets == "-" {
+        desc = fmt.Sprintf("Användaren har inga vadslagningar ännu!", )
+    }
 
     fields := []*dg.MessageEmbedField {}
 
-    if betType == 0 {
+    if listTypes == 0 {
         fields = []*dg.MessageEmbedField {
             {
-                Name: "Inkorrekta",
-                Value: incorrect,
+                Name: "Förlorade",
+                Value: lostBets,
             },
         }
-    } else if betType == 1 {
+    } else if listTypes == 1 {
         fields = []*dg.MessageEmbedField {
             {
-                Name: "Korrekta",
-                Value: correct,
+                Name: "Vunna",
+                Value: wonBets,
             },
         }
     } else {
         fields = []*dg.MessageEmbedField {
             {
-                Name: "Korrekta",
-                Value: correct,
+                Name: "Vunna",
+                Value: wonBets,
             },
             {
-                Name: "Inkorrekta",
-                Value: incorrect,
+                Name: "Förlorade",
+                Value: lostBets,
             },
         }
     }

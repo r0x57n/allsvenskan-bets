@@ -49,7 +49,7 @@ var (
 type cmd struct {
     name string
     description string
-    category cmdCategory
+    category CommandCategory
     admin bool
     options []*dg.ApplicationCommandOption
 }
@@ -84,7 +84,7 @@ type challenge struct {
     matchID int
     points int
     condition string
-    status status
+    status ChallengeStatus
 }
 
 type user struct {
@@ -100,14 +100,14 @@ type user struct {
   Enums
 */
 
-type cmdCategory string
+type CommandCategory string
 const (
     General = "Allmänt"
     Betting = "Vadslagning"
     Admin = "Admin"
 )
 
-type status int
+type ChallengeStatus int
 const (
     Unhandled = iota
     Sent
@@ -117,7 +117,14 @@ const (
     Forfeited
 )
 
-type location int
+type BetType int
+const (
+    Lost = iota
+    Won
+    All
+)
+
+type BetLocation int
 const (
 	Home = iota
 	Away

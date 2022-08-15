@@ -13,7 +13,10 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
-    challengeeID := getOptionsOrRespond(s, i, NewMsg)[0]
+    msgOptions := getOptionsOrRespond(s, i, NewMsg)
+    if msgOptions == nil { return }
+
+    challengeeID := msgOptions[0]
     challengee, err := s.User(fmt.Sprintf("%v", challengeeID.Value))
     if err != nil { log.Panic(err) }
 

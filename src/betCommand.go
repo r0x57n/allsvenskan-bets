@@ -116,7 +116,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, UpdateMsg, msg, components)
 }
 
-func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
+func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where BetLocation) {
     db := connectDB()
 	defer db.Close()
 
