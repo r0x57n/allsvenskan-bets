@@ -30,7 +30,7 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    alreadyChallenged := getChallenge(db, fmt.Sprintf("challengeeUID=%v AND status!=%v AND status!=%v AND status!=%v", challengee.ID, Unhandled, Declined, Forfeited )).id != -1
+    alreadyChallenged := getChallenge(db, "challengeeUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited ).id != -1
     if alreadyChallenged {
         addInteractionResponse(s, i, NewMsg, "Du kan inte utmana samma spelare flera gånger.")
         return
@@ -65,7 +65,7 @@ func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
 
     matchID := splitted[1]
 
-    m := getMatch(db, fmt.Sprintf("id=%v", matchID))
+    m := getMatch(db, "id=?", matchID)
 
     val := challengee.ID + "_" + matchID + "_"
 
@@ -232,7 +232,7 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
     db := connectDB()
     defer db.Close()
 
-    m := getMatch(db, fmt.Sprintf("id=%v", cid))
+    m := getMatch(db, "id=?", cid)
 
     _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", Sent, challengerID)
     if err != nil { log.Panic(err) }
@@ -289,7 +289,7 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
     status := 1
     plusOrMinus := ""
 
-    c := getChallenge(db, fmt.Sprintf("id=%v", cid))
+    c := getChallenge(db, "id=?", cid)
 
     if answ == "accept" {
         status = 2

@@ -68,12 +68,12 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
 	uid := getInteractUID(i)
 
     earlierBetScore := [2]int {-1, -1}
-    earlierBet := getBet(db, fmt.Sprintf("uid=%v AND matchid=%v", uid, mid))
+    earlierBet := getBet(db, "uid=? AND matchid=?", uid, mid)
     if earlierBet.id != -1 {
         earlierBetScore[0], earlierBetScore[1] = earlierBet.homeScore, earlierBet.awayScore
     }
 
-    m := getMatch(db, fmt.Sprintf("id=%v", mid))
+    m := getMatch(db, "id=?", mid)
     if m.id == -1 {
         addErrorResponse(s, i, UpdateMsg)
         return
@@ -156,7 +156,7 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where location) {
         } else { log.Fatal(err) }
     }
 
-    hasBettedBefore := getBet(db, fmt.Sprintf("uid=%v AND matchid=%v", uid, mid)).id != -1
+    hasBettedBefore := getBet(db, "uid=? AND matchid=?", uid, mid).id != -1
 
 	if hasBettedBefore {
         _, err = db.Exec("UPDATE bets SET " + awayOrHome + "Score=? WHERE (uid, matchid) IS (?, ?)", score, uid, mid)

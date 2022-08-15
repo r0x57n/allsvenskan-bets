@@ -14,7 +14,7 @@ func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
     defer db.Close()
 
     uid := getInteractUID(i)
-    challenges := *getChallenges(db, fmt.Sprintf("(challengerUID=%v OR challengeeUID=%v) AND status=%v", uid, uid, Accepted))
+    challenges := *getChallenges(db, "(challengerUID=? OR challengeeUID=?) AND status=?", uid, uid, Accepted)
 
     if len(challenges) == 0 {
         addInteractionResponse(s, i, NewMsg, "Inga utmaningar gjorda!")
@@ -56,7 +56,7 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     cid := getValuesOrRespond(s, i, UpdateMsg)
     if cid == nil { return }
 
-    c := getChallenge(db, fmt.Sprintf("id=%v", cid[0]))
+    c := getChallenge(db, "id=?", cid[0])
 
     _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", RequestForfeit, c.id)
     if err != nil { log.Panic(err) }
@@ -109,7 +109,7 @@ func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
     answ := splitted[0]
     cid := splitted[1]
 
-    c := getChallenge(db, fmt.Sprintf("id=%v", cid))
+    c := getChallenge(db, "id=?", cid)
 
     msgChicken := ""
     msgAcceptor := ""

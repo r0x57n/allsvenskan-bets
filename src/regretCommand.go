@@ -15,7 +15,7 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     uid := getInteractUID(i)
 
-    allBets := *getBets(db, fmt.Sprintf("uid=%v AND handled=%v", uid, 0))
+    allBets := *getBets(db, "uid=? AND handled=?", uid, 0)
 
     labels := make(map[int]string)
     dates := make(map[int]string)
@@ -23,7 +23,7 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
     var regrettableBets []bet
 
     for _, b := range allBets {
-        m := getMatch(db, fmt.Sprintf("id=%v", b.matchid))
+        m := getMatch(db, "id=?", b.matchid)
         matchDate, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 
         if time.Now().Before(matchDate) {

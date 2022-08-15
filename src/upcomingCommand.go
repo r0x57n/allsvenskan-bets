@@ -82,7 +82,7 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 	}
 
     challengesMsg := ""
-    challenges := *getChallenges(db, fmt.Sprintf("(challengerUID=%v OR challengeeUID=%v) AND status=%v", uid, uid, Accepted))
+    challenges := *getChallenges(db, "(challengerUID=? OR challengeeUID=?) AND status=?", uid, uid, Accepted)
 
     if len(challenges) != 0 {
         for _, c := range challenges {

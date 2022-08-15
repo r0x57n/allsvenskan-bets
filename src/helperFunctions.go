@@ -50,7 +50,8 @@ func notOwner(s *dg.Session, i *dg.InteractionCreate) bool {
 
 
 /*
-   Common database stuff (SQL)
+   Common database stuff.
+   We take care to let the SQL package prepare the statements, see: https://go.dev/doc/database/sql-injection
 */
 
 func connectDB() *sql.DB {
@@ -94,10 +95,10 @@ func getCurrentRound(db *sql.DB) int {
     return round
 }
 
-func getMatches(db *sql.DB, where string) *[]match {
+func getMatches(db *sql.DB, where string, args ...any) *[]match {
     var matches []match
 
-	rows, err := db.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE " + where)
+    rows, err := db.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE " + where, args...)
 	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
@@ -114,10 +115,10 @@ func getMatches(db *sql.DB, where string) *[]match {
     return &matches
 }
 
-func getMatch(db *sql.DB, where string) match {
+func getMatch(db *sql.DB, where string, args ...any) match {
     var m match
 
-	err := db.QueryRow("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished, round FROM matches WHERE " + where).
+	err := db.QueryRow("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished, round FROM matches WHERE " + where, args...).
               Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished, &m.round)
 	if err != nil {
         if err == sql.ErrNoRows {
@@ -130,10 +131,10 @@ func getMatch(db *sql.DB, where string) match {
     return m
 }
 
-func getBets(db *sql.DB, where string) *[]bet {
+func getBets(db *sql.DB, where string, args ...any) *[]bet {
     var bets []bet
 
-	rows, err := db.Query("SELECT id, uid, matchid, homeScore, awayScore, handled, won, round FROM bets WHERE " + where)
+	rows, err := db.Query("SELECT id, uid, matchid, homeScore, awayScore, handled, won, round FROM bets WHERE " + where, args...)
 	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
@@ -150,10 +151,10 @@ func getBets(db *sql.DB, where string) *[]bet {
     return &bets
 }
 
-func getBet(db *sql.DB, where string) bet {
+func getBet(db *sql.DB, where string, args ...any) bet {
     var b bet
 
-	err := db.QueryRow("SELECT id, uid, matchid, homeScore, awayScore, handled, won, round FROM bets WHERE " + where).
+	err := db.QueryRow("SELECT id, uid, matchid, homeScore, awayScore, handled, won, round FROM bets WHERE " + where, args...).
               Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.handled, &b.won, &b.round)
 	if err != nil {
         if err == sql.ErrNoRows {
@@ -166,10 +167,10 @@ func getBet(db *sql.DB, where string) bet {
     return b
 }
 
-func getChallenges(db *sql.DB, where string) *[]challenge {
+func getChallenges(db *sql.DB, where string, args ...any) *[]challenge {
     var challenges []challenge
 
-	rows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE " + where)
+	rows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE " + where, args...)
 	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
@@ -186,10 +187,10 @@ func getChallenges(db *sql.DB, where string) *[]challenge {
     return &challenges
 }
 
-func getChallenge(db *sql.DB, where string) challenge {
+func getChallenge(db *sql.DB, where string, args ...any) challenge {
     var c challenge
 
-	err := db.QueryRow("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE " + where).
+	err := db.QueryRow("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE " + where, args...).
               Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
 	if err != nil {
         if err == sql.ErrNoRows {
@@ -213,9 +214,8 @@ func getCurrentMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMe
     options := []dg.SelectMenuOption{}
 
     round := getCurrentRound(db)
-
 	today := time.Now().Format(DB_TIME_LAYOUT)
-    matches := *getMatches(db, fmt.Sprintf("round=%v AND date>='%v'", round, today))
+    matches := *getMatches(db, "round=? AND date>=?", round, today)
 
 	if len(matches) == 0 {
         return &options
