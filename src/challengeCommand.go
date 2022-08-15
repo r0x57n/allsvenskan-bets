@@ -57,7 +57,10 @@ func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
-    value := getValuesOrRespond(s, i, UpdateMsg)[0]
+    values := getValuesOrRespond(s, i, UpdateMsg)
+    if values == nil { return }
+    value := values[0]
+
     splitted := strings.Split(value, "_")
 
     challengee, err := s.User(splitted[0])
@@ -99,6 +102,7 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
     defer db.Close()
 
     values := getValuesOrRespond(s, i, UpdateMsg)
+    if values == nil { return }
 
     splitted := strings.Split(values[0], "_")
     challengee, err := s.User(splitted[0])
@@ -144,6 +148,7 @@ func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
     defer db.Close()
 
     values := getValuesOrRespond(s, i, UpdateMsg)
+    if values == nil { return }
     splitted := strings.Split(values[0], "_")
 
     challengee, err := s.User(splitted[0])
@@ -191,7 +196,10 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
-    value := getValuesOrRespond(s, i, UpdateMsg)[0]
+    values := getValuesOrRespond(s, i, UpdateMsg)
+    if values == nil { return }
+    value := values[0]
+
     splitted := strings.Split(value, "_")
 
     if value == "discard" {
@@ -277,7 +285,9 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
-    value := getValuesOrRespond(s, i, UpdateMsg)[0]
+    values := getValuesOrRespond(s, i, UpdateMsg)
+    if values == nil { return }
+    value := values[0]
 
     splitted := strings.Split(value, "_")
     answ := splitted[0]
