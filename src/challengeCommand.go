@@ -54,26 +54,46 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    alreadyChallenged := getChallenge(db, "challengeeUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited ).id != -1
-    if alreadyChallenged {
-        addInteractionResponse(s, i, NewMsg, "Du kan inte utmana samma spelare flera gånger.")
-        return
-    }
-
-    challenges := *getChallenges(db, "challengeeUID=? AND (status=? OR status=? OR status=? OR status=?)", challengee.ID, Unhandled, Sent, Accepted, RequestForfeit)
+    challenges := *getChallenges(db, "(challengeeUID=? OR challengerUID=?) AND (status=? OR status=? OR status=? OR status=?)",
+                                      interactionUID, interactionUID, Unhandled, Sent, Accepted, RequestForfeit)
     if len(challenges) >= 25 {
         addInteractionResponse(s, i, NewMsg, "Du kan inte ha mer än 25 utmaningar.")
         return
     }
 
-    options := getCurrentMatchesAsOptions(db, challengee.ID)
+    // Get the options
+    options := *getCurrentMatchesAsOptions(db, challengee.ID)
+
+    if len(options) == 0 {
+        addInteractionResponse(s, i, NewMsg, "Inga matcher du kan utmana spelaren om.")
+        return
+    }
+
+    // Remove matches where a challenge already exists
+    for i, option := range options {
+        matchid := strings.Split(option.Value, "_")[1]
+
+        existingChallenge := getChallenge(db, "((challengerUID=? AND challengeeUID=?) OR " +
+                                              "(challengeeUID=? AND challengerUID=?)) " +
+                                              "AND matchID=? " +
+                                              "AND status!=? AND status!=?",
+                                              interactionUID, challengee.ID,
+                                              interactionUID, challengee.ID,
+                                              matchid,
+                                              Declined, Forfeited)
+        if existingChallenge.id != -1 {
+            options = append(options[:i], options[i+1:]...)
+        }
+    }
+
+    // Put it all together and send
     components := []dg.MessageComponent {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Vilken match vill du utmana om?",
                     CustomID: "challSelectWinner",
-                    Options: *options,
+                    Options: options,
                 },
             },
         },
@@ -154,6 +174,7 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
 
     if maxPoints == 0 {
         addCompInteractionResponse(s, i, UpdateMsg, "Inga poäng att satsa med.", []dg.MessageComponent{})
+        return
     }
 
     components := []dg.MessageComponent {
@@ -259,37 +280,44 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     // Security checks
     challengeeUser := getUser(db, challengee.ID)
     if challengeeUser.interactable == 0 {
-        addInteractionResponse(s, i, UpdateMsg, "Användaren tillåter inte utmaningar.")
+        addCompInteractionResponse(s, i, UpdateMsg, "Användaren tillåter inte utmaningar.", []dg.MessageComponent{})
         return
     }
 
     if strconv.Itoa(challengeeUser.uid) == interactionUID {
-        addInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana dig själv.")
+        addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana dig själv.", []dg.MessageComponent{})
         return
     }
 
-    alreadyChallenged := getChallenge(db, "challengeeUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited ).id != -1
-    if alreadyChallenged {
-        addInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana samma spelare flera gånger.")
+    existingChallenge := getChallenge(db, "((challengerUID=? AND challengeeUID=?) OR " +
+                                          "(challengeeUID=? AND challengerUID=?)) " +
+                                          "AND matchID=? " +
+                                          "AND status!=? AND status!=?",
+                                           interactionUID, challengee.ID,
+                                           interactionUID, challengee.ID,
+                                           matchID,
+                                           Declined, Forfeited)
+    if existingChallenge.id != -1 {
+        addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana samma spelare flera gånger.", []dg.MessageComponent{})
         return
     }
 
     challenges := *getChallenges(db, "challengeeUID=? AND (status=? OR status=? OR status=? OR status=?)", challengee.ID, Unhandled, Sent, Accepted, RequestForfeit)
     if len(challenges) >= 25 {
-        addInteractionResponse(s, i, UpdateMsg, "Du kan inte ha mer än 25 utmaningar.")
+        addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte ha mer än 25 utmaningar.", []dg.MessageComponent{})
         return
     }
 
     m := getMatch(db, "id=?", matchID)
     if matchHasBegun(s, i, m) {
-        addInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana om en match som redan startat.")
+        addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana om en match som redan startat.", []dg.MessageComponent{})
         return
     }
 
     pointsInt, err := strconv.Atoi(points)
     if err != nil { log.Panic(err) }
     if challengeeUser.seasonPoints < pointsInt || challengerUser.seasonPoints < pointsInt {
-        addInteractionResponse(s, i, UpdateMsg, "Du eller den du utmanar har inte nog med poäng för att anta utmaningen.")
+        addCompInteractionResponse(s, i, UpdateMsg, "Du eller den du utmanar har inte nog med poäng för att anta utmaningen.", []dg.MessageComponent{})
         return
     }
 
@@ -301,8 +329,8 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
                          interactionUID, challengee.ID, 0, matchID, points, winnerTeam)
     if err != nil { log.Panic(err) }
 
-    msg := "Utmaning mottagen och poängen har plockats från ditt konto.\n"
-    msg += "Nu måste motståndaren acceptera/neka utmaningen.\n\n"
+    msg := "Utmaning har skickats och poängen har plockats från ditt konto. "
+    msg += "Nu är det upp till motståndaren att acceptera/neka utmaningen.\n\n"
     msg += "Om motståndaren inte accepterar/nekar utmaningen innan matchstart kommer poängen tillbaka till ditt konto."
 
     components := []dg.MessageComponent {}
@@ -320,12 +348,12 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
 
     var m match
     var c challenge
-    err := db.QueryRow("SELECT m.homeTeam, m.awayTeam, m.date, c.condition FROM challenges AS c " +
+    err := db.QueryRow("SELECT m.homeTeam, m.awayTeam, m.date, c.id, c.condition FROM challenges AS c " +
                        "JOIN matches AS m ON m.id = c.matchID " +
-                       "WHERE c.id=?", cid).Scan(&m.homeTeam, &m.awayTeam, &m.date, &c.condition)
+                       "WHERE c.id=?", cid).Scan(&m.homeTeam, &m.awayTeam, &m.date, &c.id, &c.condition)
     if err != nil { log.Panic(err) }
 
-    _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", Sent, challengerID)
+    _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", Sent, c.id)
     if err != nil { log.Panic(err) }
 
     options := []dg.SelectMenuOption{
@@ -372,9 +400,6 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
     })
 }
 
-// KOLLA: Att poängen finns, att man är den man påstår, att man inte har 25 utmaningar redan (lägg vilande isf),
-// att utmaningen inte redan existerar, att matchen inte har startat
-// FIXA ÄVEN: att man fattar VILKEN utmaning som blivit accpeterad/declinad
 func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
@@ -387,24 +412,77 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
     answ := splitted[0]
     cid := splitted[1]
 
-    msgChallenged := ""
+    msgChallenger := ""
     msgChallengee := ""
     userUID := 0
-    status := 1
+    status := Unhandled
     plusOrMinus := ""
 
     c := getChallenge(db, "id=?", cid)
+    m := getMatch(db, "id=?", c.matchID)
+    challengee := getUser(db, strconv.Itoa(c.challengeeUID))
 
+    // Security checks
+    if c.status != Sent {
+        addCompInteractionResponse(s, i, UpdateMsg, "Utmaningen har redan blivit hanterad.", []dg.MessageComponent{})
+        return
+    }
+
+    challenges := *getChallenges(db, "challengeeUID=? AND (status=? OR status=? OR status=? OR status=?)", challengee.uid, Unhandled, Sent, Accepted, RequestForfeit)
+    if len(challenges) >= 25 {
+        addInteractionResponse(s, i, UpdateMsg, "Du kan inte ha mer än 25 utmaningar, ta bort en för att kunna acceptera denna.")
+        return
+    }
+
+    if strconv.Itoa(challengee.uid) != getInteractUID(i) {
+        addInteractionResponse(s, i, UpdateMsg, "Du är inte den utmanade.")
+        return
+    }
+
+    if challengee.seasonPoints < c.points {
+        msgChallenger = "Motståndandaren har inte tillräckligt med poäng för att acceptera utmaningen.\n"
+        msgChallengee = "Du har inte tillräckligt med poäng för att acceptera utmaningen.\n"
+        answ = "decline"
+    }
+
+    existingChallenge := getChallenge(db, "((challengerUID=? AND challengeeUID=?) OR " +
+                                          "(challengeeUID=? AND challengerUID=?)) " +
+                                          "AND matchID=? AND id!=? " +
+                                          "AND status!=? AND status!=?",
+                                           c.challengerUID, challengee.uid,
+                                           c.challengerUID, challengee.uid,
+                                           c.matchID, c.id,
+                                           Declined, Forfeited)
+    if existingChallenge.id != -1 {
+        log.Printf("chall: %v", existingChallenge)
+        msgChallenger = "Du har redan en aktiv utmaning med användaren.\n"
+        msgChallengee = "Du har redan en aktiv utmaning med användaren.\n"
+        answ = "decline"
+    }
+
+    if matchHasBegun(s, i, m) {
+        msgChallenger = "Motståndaren svarade försent.\n"
+        msgChallengee = "Matchen har redan startat.\n"
+        answ = "decline"
+    }
+
+    challengeeUsername, _ := s.User(fmt.Sprint(challengee.uid))
+
+    // Do stuff
     if answ == "accept" {
-        status = 2
-        msgChallenged = fmt.Sprintf("Din utmaning har blivit accepterad.")
-        msgChallengee = fmt.Sprintf("Skickar bekräftelse till utmanaren.")
+        status = Accepted
+        msgChallenger += fmt.Sprintf("Din utmaning har blivit accepterad.\n")
+        msgChallenger += fmt.Sprintf("**%v** vs **%v** för **%v** poäng mot **%v**",
+                                     m.homeTeam, m.awayTeam, c.points, challengeeUsername)
+        msgChallengee += fmt.Sprintf("Skickar bekräftelse till utmanaren.")
         userUID = c.challengeeUID
         plusOrMinus = "-"
-    } else if answ == "decline" {
-        status = 3
-        msgChallenged = fmt.Sprintf("Din utmaning har blivit nekad.")
-        msgChallengee = fmt.Sprintf("Du har nekat utmaningen.")
+    } else {
+        status = Declined
+        msgChallenger += fmt.Sprintf("Din utmaning har blivit nekad.\n")
+        msgChallenger += fmt.Sprintf("**%v** vs **%v** för **%v** poäng mot **%v**",
+                                     m.homeTeam, m.awayTeam, c.points, challengeeUsername)
+        msgChallengee += fmt.Sprintf("Du har nekat utmaningen.")
         userUID = c.challengerUID
         plusOrMinus = "+"
     }
@@ -418,5 +496,5 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, UpdateMsg, msgChallengee, []dg.MessageComponent{})
 
     dmcid, _ := s.UserChannelCreate(fmt.Sprintf("%v", c.challengerUID))
-    s.ChannelMessageSend(dmcid.ID, msgChallenged)
+    s.ChannelMessageSend(dmcid.ID, msgChallenger)
 }

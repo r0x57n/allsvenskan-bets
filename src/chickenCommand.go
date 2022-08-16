@@ -14,7 +14,9 @@ func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
     defer db.Close()
 
     uid := getInteractUID(i)
-    challenges := *getChallenges(db, "(challengerUID=? OR challengeeUID=?) AND status=?", uid, uid, Accepted)
+    challenges := *getChallenges(db, "(challengerUID=? OR challengeeUID=?) " +
+                                     "AND (status=? OR status=?)",
+                                     uid, uid, Sent, Accepted)
 
     if len(challenges) == 0 {
         addInteractionResponse(s, i, NewMsg, "Inga utmaningar gjorda!")
@@ -23,10 +25,43 @@ func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     options := []dg.SelectMenuOption{}
     for _, c := range challenges {
-        msg := fmt.Sprintf("%v, matchvinnare %v för %v poäng", c.challengerUID, c.matchID, c.points)
+        msg := ""
+        desc := ""
+        homeTeam := ""
+        awayTeam := ""
+        username := ""
+        m := getMatch(db, "id=?", c.matchID)
+
+        if strconv.Itoa(c.challengerUID) == uid {
+            challengee, _ := s.User(strconv.Itoa(c.challengeeUID))
+            username = challengee.Username
+
+            if c.condition == "homeTeam" {
+                homeTeam = "[" + m.homeTeam + "]"
+                awayTeam = m.awayTeam
+            } else {
+                homeTeam = m.homeTeam
+                awayTeam = "[" + m.awayTeam + "]"
+            }
+        } else {
+            challenger, _ := s.User(strconv.Itoa(c.challengerUID))
+            username = challenger.Username
+
+            if c.condition == "awayTeam" {
+                homeTeam = "[" + m.homeTeam + "]"
+                awayTeam = m.awayTeam
+            } else {
+                homeTeam = m.homeTeam
+                awayTeam = "[" + m.awayTeam + "]"
+            }
+        }
+
+        msg = fmt.Sprintf("%v vs %v för %v poäng", homeTeam, awayTeam, c.points)
+        desc = fmt.Sprintf("%v - %v", username, m.date)
 
         options = append(options, dg.SelectMenuOption{
             Label: msg,
+            Description: desc,
             Value: fmt.Sprintf("%v", c.id),
         })
     }
@@ -50,8 +85,6 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
-    addCompInteractionResponse(s, i, UpdateMsg, "Skickat förfrågan om att avbryta utmaningen.", []dg.MessageComponent{})
-
     interactionUID, _ := strconv.Atoi(getInteractUID(i))
     vals := getValuesOrRespond(s, i, UpdateMsg)
     if vals == nil { return }
@@ -59,11 +92,7 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     cid := vals[0]
     c := getChallenge(db, "id=?", cid)
 
-    _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", RequestForfeit, c.id)
-    if err != nil { log.Panic(err) }
-
     contactID := c.challengerUID
-
     requesterIsChallenger := interactionUID == c.challengerUID;
     if requesterIsChallenger {
         contactID = c.challengeeUID
@@ -93,7 +122,35 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
         },
     }
 
-    msg := "Vill avbryta utmaning, vad vill du göra?"
+    user, _ := s.User(getInteractUID(i))
+    m := getMatch(db, "id=?", c.matchID)
+    msg := fmt.Sprintf("**%v** vill avbryta om **%v** vs **%v** för **%v** poäng, vad vill du göra?",
+                        user.Username, m.homeTeam, m.awayTeam, c.points)
+
+    if c.status == Sent {
+        _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", Declined, c.id)
+        if err != nil { log.Panic(err) }
+
+        _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints + ? WHERE uid=?", c.points, c.challengerUID)
+        if err != nil { log.Panic(err) }
+
+        addCompInteractionResponse(s, i, UpdateMsg, "Utmaningen borttagen.", []dg.MessageComponent{})
+
+        msg = fmt.Sprintf("**%v** avbröt utmaningen om **%v** vs **%v** för **%v** poäng.",
+                            user.Username, m.homeTeam, m.awayTeam, c.points)
+
+        s.ChannelMessageSendComplex(channelID.ID, &dg.MessageSend{
+            Content: msg,
+            Components: []dg.MessageComponent{},
+        })
+
+        return
+    }
+
+    _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", RequestForfeit, c.id)
+    if err != nil { log.Panic(err) }
+
+    addCompInteractionResponse(s, i, UpdateMsg, "Skickat förfrågan om att avbryta utmaningen.", []dg.MessageComponent{})
 
     s.ChannelMessageSendComplex(channelID.ID, &dg.MessageSend{
         Content: msg,

@@ -58,6 +58,7 @@ func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m match) bool {
     return time.Now().After(matchDate)
 }
 
+
 /*
    Common database stuff.
    We take care to let the SQL package prepare the statements, see: https://go.dev/doc/database/sql-injection
@@ -258,6 +259,10 @@ func getCurrentMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMe
 
 func getPointsAsOptions(values string, maxPoints int) *[]dg.SelectMenuOption {
     options := []dg.SelectMenuOption{}
+
+    if maxPoints > 25 {
+        maxPoints = 24
+    }
 
     if maxPoints != 0 {
         for i := 1; i <= maxPoints; i++ {
