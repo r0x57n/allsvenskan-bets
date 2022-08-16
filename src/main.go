@@ -103,9 +103,10 @@ type user struct {
 
 type CommandCategory string
 const (
-    General = "Allmänt"
-    Betting = "Vadslagning"
-    Admin = "Admin"
+    CommandCategoryGeneral = "Allmänt"
+    CommandCategoryBetting = "Slå vad"
+    CommandCategoryListing = "Vadslagningar"
+    CommandCategoryAdmin = "Admin"
 )
 
 type ChallengeStatus int
