@@ -5,7 +5,6 @@ import (
 	"strconv"
     "strings"
 	"log"
-	"database/sql"
     "time"
 	_ "github.com/mattn/go-sqlite3"
 	dg "github.com/bwmarrin/discordgo"
@@ -80,7 +79,10 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
     }
 
     datetime, err := time.Parse(DB_TIME_LAYOUT, m.date)
-	if err != nil { log.Panic(err) }
+	if err != nil {
+        addErrorResponse(s, i, NewMsg, "Couldn't translate match date from database...")
+        return
+    }
 
     if time.Now().After(datetime) {
         addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte betta på en match som startat.", []dg.MessageComponent{})
@@ -124,9 +126,9 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where BetLocation
     if values == nil { return }
 
 	var (
+		uid = getInteractUID(i)
         splitted = strings.Split(values[0], "_")
 		mid = splitted[0]
-		uid = getInteractUID(i)
 		homeScore = "0"
 		awayScore = "0"
         score = ""
@@ -147,21 +149,23 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where BetLocation
             return
 	}
 
-    round := -1
-    err := db.QueryRow("SELECT round FROM matches WHERE id=?", mid).Scan(&round)
-	if err != nil {
-        if err == sql.ErrNoRows {
-            addErrorResponse(s, i, UpdateMsg, "Kunde inte hitta matchen...")
-            return
-        } else { log.Fatal(err) }
+    m := getMatch(db, "id=?", mid)
+    if m.id == -1 {
+        addErrorResponse(s, i, UpdateMsg)
+        return
     }
 
-    hasBettedBefore := getBet(db, "uid=? AND matchid=?", uid, mid).id != -1
+    if matchHasBegun(s, i, m) {
+        addCompInteractionResponse(s, i, UpdateMsg, "Matchen har startat...", []dg.MessageComponent{})
+        return
+    }
 
+    var err error
+    hasBettedBefore := getBet(db, "uid=? AND matchid=?", uid, mid).id != -1
 	if hasBettedBefore {
         _, err = db.Exec("UPDATE bets SET " + awayOrHome + "Score=? WHERE (uid, matchid) IS (?, ?)", score, uid, mid)
 	} else {
-		_, err = db.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore, round) VALUES (?, ?, ?, ?, ?)", uid, mid, homeScore, awayScore, round)
+		_, err = db.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore, round) VALUES (?, ?, ?, ?, ?)", uid, mid, homeScore, awayScore, m.round)
 	}
 
     if err != nil { log.Panic(err) }

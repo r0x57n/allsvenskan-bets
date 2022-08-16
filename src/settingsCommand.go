@@ -110,9 +110,9 @@ func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
     vals := getValuesOrRespond(s, i, UpdateMsg)
     if vals == nil { return }
 
-    u := getUserFromInteraction(db, i)
+    uid := getInteractUID(i)
 
-    _, err := db.Exec("UPDATE users SET viewable=? WHERE uid=?", vals[0], u.uid)
+    _, err := db.Exec("UPDATE users SET viewable=? WHERE uid=?", vals[0], uid)
     if err != nil { log.Panic(err) }
 
     addNoInteractionResponse(s, i)
@@ -125,9 +125,9 @@ func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
     vals := getValuesOrRespond(s, i, UpdateMsg)
     if vals == nil { return }
 
-    u := getUserFromInteraction(db, i)
+    uid := getInteractUID(i)
 
-    _, err := db.Exec("UPDATE users SET interactable=? WHERE uid=?", vals[0], u.uid)
+    _, err := db.Exec("UPDATE users SET interactable=? WHERE uid=?", vals[0], uid)
     if err != nil { log.Panic(err) }
 
     addNoInteractionResponse(s, i)

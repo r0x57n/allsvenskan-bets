@@ -48,6 +48,15 @@ func notOwner(s *dg.Session, i *dg.InteractionCreate) bool {
     return false
 }
 
+func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m match) bool {
+    matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
+	if err != nil {
+        addErrorResponse(s, i, NewMsg, "Couldn't translate match date from database...")
+        return true
+    }
+
+    return time.Now().After(matchDate)
+}
 
 /*
    Common database stuff.

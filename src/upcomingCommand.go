@@ -126,5 +126,5 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
         })
     }
 
-    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Kommande vad", userBets)
+    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Kommande vadslag", userBets)
 }

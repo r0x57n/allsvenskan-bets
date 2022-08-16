@@ -1,3 +1,24 @@
+/*
+   This command allows the user to select a match from this round, choose which team wins the match
+   and use this information as grounds for a challenge to another user.
+
+   It's divided into the following steps...
+
+   0. The command is performed with options that are the user to challenge and the type of challenge to send.
+
+   The challenger:
+   1. Choose match (do security checks to give user information early).
+   2. Choose winner.
+   3. Choose points to bet.
+   4. Choose to actually send or discard the challenge.
+   5. Send or discard the challenge (do security checks again so that any value passed along from step 1
+   hasn't changed).
+
+   The challengee:
+   0. Is sent a notification about the challenge and can choose to accept/discard it.
+   1. Send response about discard or accept (do security checks once again).
+*/
+
 package main
 
 import (
@@ -36,6 +57,12 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
     alreadyChallenged := getChallenge(db, "challengeeUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited ).id != -1
     if alreadyChallenged {
         addInteractionResponse(s, i, NewMsg, "Du kan inte utmana samma spelare flera gånger.")
+        return
+    }
+
+    challenges := *getChallenges(db, "challengeeUID=? AND (status=? OR status=? OR status=? OR status=?)", challengee.ID, Unhandled, Sent, Accepted, RequestForfeit)
+    if len(challenges) >= 25 {
+        addInteractionResponse(s, i, NewMsg, "Du kan inte ha mer än 25 utmaningar.")
         return
     }
 
@@ -159,11 +186,20 @@ func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
 
     matchID := splitted[1]
     winnerTeam := splitted[2]
+    loserTeam := ""
     points := splitted[3]
 
-    teamName := ""
-    err = db.QueryRow("SELECT " + winnerTeam + " FROM matches WHERE id=?", matchID).Scan(&teamName)
+    var m match
+    err = db.QueryRow("SELECT homeTeam, awayTeam FROM matches WHERE id=?", matchID).Scan(&m.homeTeam, &m.awayTeam)
     if err != nil { log.Panic(err) }
+
+    if winnerTeam == "homeTeam" {
+        winnerTeam = m.homeTeam
+        loserTeam = m.awayTeam
+    } else {
+        winnerTeam = m.awayTeam
+        loserTeam = m.homeTeam
+    }
 
     options := []dg.SelectMenuOption{
         {
@@ -188,7 +224,7 @@ func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
         },
     }
 
-    msg := fmt.Sprintf("\nDu vill utmana **%v** om att **%v** vinner för **%v** poäng.\n\n", challengee.Username, teamName, points)
+    msg := fmt.Sprintf("\nDu vill utmana **%v** om att **%v** vinner mot **%v** för **%v** poäng.\n\n", challengee.Username, winnerTeam, loserTeam, points)
     msg += "Är du säker? En utmaning kan bara tas bort om den du utmanar accepterar borttagningen och" +
            " poängen kommer finnas hos vadhållaren tills dess att utmaningen är klar eller den du utmanat" +
            " har nekat vadet."
@@ -210,6 +246,7 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
+    challengerUser := getUserFromInteraction(db, i)
     interactionUID := getInteractUID(i)
 
     challengee, err := s.User(splitted[0])
@@ -219,6 +256,44 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     winnerTeam := splitted[2]
     points := splitted[3]
 
+    // Security checks
+    challengeeUser := getUser(db, challengee.ID)
+    if challengeeUser.interactable == 0 {
+        addInteractionResponse(s, i, UpdateMsg, "Användaren tillåter inte utmaningar.")
+        return
+    }
+
+    if strconv.Itoa(challengeeUser.uid) == interactionUID {
+        addInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana dig själv.")
+        return
+    }
+
+    alreadyChallenged := getChallenge(db, "challengeeUID=? AND status!=? AND status!=? AND status!=?", challengee.ID, Unhandled, Declined, Forfeited ).id != -1
+    if alreadyChallenged {
+        addInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana samma spelare flera gånger.")
+        return
+    }
+
+    challenges := *getChallenges(db, "challengeeUID=? AND (status=? OR status=? OR status=? OR status=?)", challengee.ID, Unhandled, Sent, Accepted, RequestForfeit)
+    if len(challenges) >= 25 {
+        addInteractionResponse(s, i, UpdateMsg, "Du kan inte ha mer än 25 utmaningar.")
+        return
+    }
+
+    m := getMatch(db, "id=?", matchID)
+    if matchHasBegun(s, i, m) {
+        addInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana om en match som redan startat.")
+        return
+    }
+
+    pointsInt, err := strconv.Atoi(points)
+    if err != nil { log.Panic(err) }
+    if challengeeUser.seasonPoints < pointsInt || challengerUser.seasonPoints < pointsInt {
+        addInteractionResponse(s, i, UpdateMsg, "Du eller den du utmanar har inte nog med poäng för att anta utmaningen.")
+        return
+    }
+
+    // Write to database
     _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints - ? WHERE uid=?", points, interactionUID)
     if err != nil { log.Panic(err) }
 
@@ -243,18 +318,23 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
     db := connectDB()
     defer db.Close()
 
-    m := getMatch(db, "id=?", cid)
+    var m match
+    var c challenge
+    err := db.QueryRow("SELECT m.homeTeam, m.awayTeam, m.date, c.condition FROM challenges AS c " +
+                       "JOIN matches AS m ON m.id = c.matchID " +
+                       "WHERE c.id=?", cid).Scan(&m.homeTeam, &m.awayTeam, &m.date, &c.condition)
+    if err != nil { log.Panic(err) }
 
-    _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", Sent, challengerID)
+    _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", Sent, challengerID)
     if err != nil { log.Panic(err) }
 
     options := []dg.SelectMenuOption{
         {
-            Label: "Acceptera",
+            Label: "Anta utmaningen",
             Value: fmt.Sprintf("accept_%v", cid),
         },
         {
-            Label: "Neka",
+            Label: "Neka utmaningen",
             Value: fmt.Sprintf("decline_%v", cid),
         },
     }
@@ -271,9 +351,17 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
         },
     }
 
-    msg := fmt.Sprintf("Hej!\n")
-    msg += fmt.Sprintf("%v har utmanat dig till följande utmaning...\n", challengerID)
-    msg += fmt.Sprintf("**%v** vinner på hemmaplan mot **%v** för **%v** poäng.\n\n", m.homeTeam, m.awayTeam, points)
+    winner, loser := m.homeTeam, m.awayTeam
+
+    if c.condition == "awayTeam" {
+        winner = m.awayTeam
+        loser = m.homeTeam
+    }
+
+    challenger, _ := s.User(challengerID)
+
+    msg := fmt.Sprintf("Du har blivit utmanad!\n")
+    msg += fmt.Sprintf("**%v** tror att **%v** vinner mot **%v** den **%v** för **%v** poäng.\n\n", challenger.Username, winner, loser, m.date, points)
     msg += fmt.Sprintf("Vill du satsa emot?\n\n")
     msg += fmt.Sprintf("*du kan stänga av utmaningar via **/inställningar** kommandot*")
 
@@ -284,6 +372,9 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
     })
 }
 
+// KOLLA: Att poängen finns, att man är den man påstår, att man inte har 25 utmaningar redan (lägg vilande isf),
+// att utmaningen inte redan existerar, att matchen inte har startat
+// FIXA ÄVEN: att man fattar VILKEN utmaning som blivit accpeterad/declinad
 func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()

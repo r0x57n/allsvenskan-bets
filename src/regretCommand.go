@@ -1,17 +1,17 @@
 package main
 
 import (
-	"fmt"
-	"strconv"
-	"log"
-	"time"
-	_ "github.com/mattn/go-sqlite3"
-	dg "github.com/bwmarrin/discordgo"
+    "fmt"
+    "strconv"
+    "log"
+    "time"
+    _ "github.com/mattn/go-sqlite3"
+    dg "github.com/bwmarrin/discordgo"
 )
 
 func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
-	defer db.Close()
+    defer db.Close()
 
     uid := getInteractUID(i)
 
@@ -65,29 +65,33 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
 
 func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
-	defer db.Close()
+    defer db.Close()
 
-    bid := getValuesOrRespond(s, i, UpdateMsg)
-    if bid == nil { return }
+    values := getValuesOrRespond(s, i, UpdateMsg)
+    if values == nil { return }
+    bid := values[0]
 
-    var matchid int
-    err := db.QueryRow("SELECT matchid FROM bets WHERE id=?", bid[0]).Scan(&matchid)
-
-    var date string
-    err = db.QueryRow("SELECT date FROM matches WHERE id=?", matchid).Scan(&date)
-    if err != nil { log.Panic(err) }
-
-    matchDate, err := time.Parse(DB_TIME_LAYOUT, date)
+    var m match
+    var b bet
+    err := db.QueryRow("SELECT m.date, b.uid FROM bets AS b " +
+                       "JOIN matches AS m ON b.matchid=m.id " +
+                       "WHERE b.id=?", bid).Scan(&m.date, &b.uid)
     if err != nil { log.Panic(err) }
 
     components := []dg.MessageComponent {}
+    msg := ""
 
-    if time.Now().After(matchDate) {
-        msg := "Kan inte ta bort en vadslagning om en pågående match..."
-        addCompInteractionResponse(s, i, UpdateMsg, msg, components)
+    if matchHasBegun(s, i, m) {
+        msg = "Kan inte ta bort en vadslagning om en pågående match..."
     } else {
-        _, err = db.Exec("DELETE FROM bets WHERE id=?", bid[0])
-        msg := "Vadslagning borttagen!"
-        addCompInteractionResponse(s, i, UpdateMsg, msg, components)
+        if strconv.Itoa(b.uid) != getInteractUID(i) {
+            addErrorResponse(s, i, UpdateMsg, "Du försökte ta bort någon annans vadslagning...")
+            return
+        }
+
+        _, err = db.Exec("DELETE FROM bets WHERE id=?", bid)
+        msg = "Vadslagning borttagen!"
     }
+
+    addCompInteractionResponse(s, i, UpdateMsg, msg, components)
 }
