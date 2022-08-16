@@ -22,7 +22,7 @@ const (
 	DB_TYPE = "sqlite3"
 	DB_TIME_LAYOUT = time.RFC3339
     MSG_TIME_LAYOUT = "2006-01-02 kl. 15:04"
-    VERSION = "0.6.0" // major.minor.patch
+    VERSION = "0.7.0" // major.minor.patch
     CHECK_BETS_INTERVAL = "30m"
     CHECK_CHALL_INTERVAL = "30m"
 )

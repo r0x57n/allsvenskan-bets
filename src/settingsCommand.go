@@ -55,7 +55,7 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     CustomID: "settingsVisibilityLabel",
-                    Placeholder: "Låt andra kunna se dina tidigare bet",
+                    Placeholder: "Låt andra kunna se dina tidigare vadslagningar",
                     Disabled: true,
                     Options: []dg.SelectMenuOption{
                         {
