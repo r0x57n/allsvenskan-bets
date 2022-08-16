@@ -16,7 +16,7 @@ func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
     uid := getInteractUID(i)
     challenges := *getChallenges(db, "(challengerUID=? OR challengeeUID=?) " +
                                      "AND (status=? OR status=?)",
-                                     uid, uid, Sent, Accepted)
+                                     uid, uid, ChallengeStatusSent, ChallengeStatusAccepted)
 
     if len(challenges) == 0 {
         addInteractionResponse(s, i, NewMsg, "Inga utmaningar gjorda!")
@@ -127,8 +127,8 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     msg := fmt.Sprintf("**%v** vill avbryta om **%v** vs **%v** för **%v** poäng, vad vill du göra?",
                         user.Username, m.homeTeam, m.awayTeam, c.points)
 
-    if c.status == Sent {
-        _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", Declined, c.id)
+    if c.status == ChallengeStatusSent {
+        _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", ChallengeStatusDeclined, c.id)
         if err != nil { log.Panic(err) }
 
         _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints + ? WHERE uid=?", c.points, c.challengerUID)
@@ -147,7 +147,7 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", RequestForfeit, c.id)
+    _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", ChallengeStatusRequestForfeit, c.id)
     if err != nil { log.Panic(err) }
 
     addCompInteractionResponse(s, i, UpdateMsg, "Skickat förfrågan om att avbryta utmaningen.", []dg.MessageComponent{})
@@ -180,12 +180,12 @@ func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
         if err != nil { log.Panic(err) }
         _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints + ? WHERE uid=?", c.points, c.challengeeUID)
         if err != nil { log.Panic(err) }
-        _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", Forfeited, cid)
+        _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", ChallengeStatusForfeited, cid)
         if err != nil { log.Panic(err) }
     } else if answer == "decline" {
         msgChicken = fmt.Sprintf("Din förfrågan om att fega ur har blivit nekad.")
         msgAcceptor = fmt.Sprintf("Du har nekat fegisens förfrågan.")
-        _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", Accepted, cid)
+        _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", ChallengeStatusAccepted, cid)
         if err != nil { log.Panic(err) }
     }
 

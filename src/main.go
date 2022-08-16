@@ -21,10 +21,10 @@ const (
 	DB = "./bets.db"
 	DB_TYPE = "sqlite3"
 	DB_TIME_LAYOUT = time.RFC3339
-    MSG_TIME_LAYOUT = "2006-02-01 kl. 15:04"
+    MSG_TIME_LAYOUT = "2006-01-02 kl. 15:04"
     VERSION = "0.6.0" // major.minor.patch
     CHECK_BETS_INTERVAL = "30m"
-    CHECK_CHALL_INTERVAL = "5s"
+    CHECK_CHALL_INTERVAL = "30m"
 )
 
 
@@ -85,6 +85,7 @@ type challenge struct {
     points int
     condition string
     status ChallengeStatus
+    round int
 }
 
 type user struct {
@@ -109,13 +110,18 @@ const (
 
 type ChallengeStatus int
 const (
-    Unhandled = iota
-    Sent
-    Accepted
-    Declined
-    RequestForfeit
-    Forfeited
-    Handled
+    ChallengeStatusUnhandled = iota
+    ChallengeStatusSent
+    ChallengeStatusAccepted
+    ChallengeStatusDeclined
+    ChallengeStatusRequestForfeit
+    ChallengeStatusForfeited
+    ChallengeStatusHandled
+)
+
+type ChallengeType int
+const (
+    ChallengeTypeWinner = iota
 )
 
 type BetType int
@@ -236,12 +242,11 @@ func main() {
 
     c := cron.New()
     if CHECK_BETS_INTERVAL != "" {
-        // Check the bets on a timed interval
         c.AddFunc("@every " + CHECK_BETS_INTERVAL, checkUnhandledBets)
         log.Printf("Checking bets every %v", CHECK_BETS_INTERVAL)
     }
     if CHECK_CHALL_INTERVAL != "" {
-        /*c.AddFunc("@every " + CHECK_CHALL_INTERVAL, checkUnhandledChallenges())*/
+        c.AddFunc("@every " + CHECK_CHALL_INTERVAL, checkUnhandledChallenges)
         log.Printf("Checking challenges every %v", CHECK_CHALL_INTERVAL)
     }
     c.Start()

@@ -84,7 +84,7 @@ func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
                          "m.homeTeam, m.awayTeam " +
                          "FROM challenges AS c " +
                          "JOIN matches AS m ON c.matchID=m.id " +
-                         "WHERE (c.challengerUID=? OR c.challengeeUID=?) AND c.status=?", uid, uid, Handled)
+                         "WHERE (c.challengerUID=? OR c.challengeeUID=?) AND c.status=?", uid, uid, ChallengeStatusHandled)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 

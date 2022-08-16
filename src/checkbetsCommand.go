@@ -10,4 +10,5 @@ func checkBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     addInteractionResponse(s, i, NewMsg, "Checking bets...")
     checkUnhandledBets()
+    checkUnhandledChallenges()
 }
