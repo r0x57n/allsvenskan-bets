@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
+    _ "github.com/lib/pq"
 )
 
 func checkUnhandledBets() {
@@ -16,10 +16,10 @@ func checkUnhandledBets() {
 	log.Printf("Checking unhandled bets...")
 
     // Fetch all unhandled bets for matches in the past
-    rows, err := db.Query("SELECT b.id, b.uid, b.matchid, b.homeScore, b.awayScore, b.handled, b.won, b.round, m.scoreHome, m.scoreAway " +
+    rows, err := db.Query("SELECT b.id, b.uid, b.matchid, b.homescore, b.awayscore, b.status, m.homescore, m.awayscore " +
                           "FROM bets AS b " +
                           "JOIN matches AS m ON m.id=b.matchid " +
-                          "WHERE date(m.date)<=? AND b.handled=? AND m.finished=?", today, 0, 1)
+                          "WHERE date(m.date)<=$1 AND b.status=$2", today, BetStatusUnhandled)
     defer rows.Close()
 	if err != nil { log.Panic(err) }
 
@@ -32,7 +32,7 @@ func checkUnhandledBets() {
 	for rows.Next() {
         var b bet
         var m match
-        rows.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.handled, &b.won, &b.round, &m.scoreHome, &m.scoreAway)
+        rows.Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status, &m.homescore, &m.awayscore)
         bets = append(bets, betAndMatch{b: b, m: m})
 	}
 
@@ -43,10 +43,10 @@ func checkUnhandledBets() {
 
 		// Handle bets for each match individually
 		for _, bam := range bets {
-            if bam.m.scoreHome == bam.b.homeScore && bam.m.scoreAway == bam.b.awayScore {
-                addPoints(bam.b, 1)
+            if bam.m.homescore == bam.b.homescore && bam.m.awayscore == bam.b.awayscore {
+                addPoints(bam.b, 1, BetStatusWon)
             } else {
-                addPoints(bam.b, 0)
+                addPoints(bam.b, 0, BetStatusLost)
             }
 
 		}
@@ -64,10 +64,10 @@ func checkUnhandledChallenges() {
 	log.Printf("Checking unhandled challenges...")
 
     // Fetch all unhandled bets for matches in the past
-    rows, err := db.Query("SELECT c.id, c.challengerUID, c.challengeeUID, c.type, c.matchID, c.points, c.condition, c.status, c.round " +
+    rows, err := db.Query("SELECT c.id, c.challengerid, c.challengeeid, c.type, c.matchid, c.points, c.condition, c.status " +
                           "FROM challenges AS c " +
-                          "JOIN matches AS m ON m.id=c.matchID " +
-                          "WHERE date(m.date)<=? AND c.status=? AND m.finished=?", today, ChallengeStatusAccepted, 1)
+                          "JOIN matches AS m ON m.id=c.matchid " +
+                          "WHERE date(m.date)<=$1 AND c.status=$2", today, ChallengeStatusAccepted)
     defer rows.Close()
 	if err != nil { log.Panic(err) }
 
@@ -80,7 +80,7 @@ func checkUnhandledChallenges() {
 	for rows.Next() {
         var c challenge
         var m match
-        rows.Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status, &c.round, &m.scoreHome, &m.scoreAway)
+        rows.Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status, &m.homescore, &m.awayscore)
         challenges = append(challenges, challengeAndMatch{c: c, m: m})
 	}
 
@@ -93,21 +93,21 @@ func checkUnhandledChallenges() {
 		for _, cam := range challenges {
             if cam.c.typ == ChallengeTypeWinner {
                 winnerUID := 0
-                homeWon := cam.m.scoreHome > cam.m.scoreAway
+                homeWon := cam.m.homescore > cam.m.awayscore
 
-                if cam.m.scoreHome == cam.m.scoreAway {
+                if cam.m.homescore == cam.m.awayscore {
                     winnerUID = -1
                 } else if homeWon {
-                    if cam.c.condition == "homeTeam" {
-                        winnerUID = cam.c.challengerUID
+                    if cam.c.condition == ChallengeConditionWinnerHome {
+                        winnerUID = cam.c.challengerid
                     } else {
-                        winnerUID = cam.c.challengeeUID
+                        winnerUID = cam.c.challengeeid
                     }
                 } else {
-                    if cam.c.condition == "awayTeam" {
-                        winnerUID = cam.c.challengerUID
+                    if cam.c.condition == ChallengeConditionWinnerAway {
+                        winnerUID = cam.c.challengerid
                     } else {
-                        winnerUID = cam.c.challengeeUID
+                        winnerUID = cam.c.challengeeid
                     }
                 }
 
@@ -119,28 +119,26 @@ func checkUnhandledChallenges() {
 	}
 }
 
-func addPoints(b bet, points int) {
-	db, err := sql.Open(DB_TYPE, DB)
+func addPoints(b bet, points int, status BetStatus) {
+    db := connectDB()
 	defer db.Close()
-	if err != nil { log.Fatal(err) }
 
     log.Printf("Awarding %v point to %v", points, b.uid)
 
-	row := db.QueryRow("SELECT seasonPoints FROM users WHERE uid=?", b.uid)
-	if err != nil { log.Panic(err) }
+	row := db.QueryRow("SELECT points FROM users WHERE uid=$1", b.uid)
 
 	var currPoints int
 	if err := row.Scan(&currPoints); err != nil {
 		if err == sql.ErrNoRows {
-			if _, err := db.Exec("INSERT INTO users (uid, seasonPoints) VALUES (?, ?)", b.uid, points); err != nil { log.Panic(err) }
+			if _, err := db.Exec("INSERT INTO users (uid, points) VALUES ($1, $2)", b.uid, points); err != nil { log.Panic(err) }
 		} else {
 			log.Panic(err)
 		}
 	} else {
-		if _, err := db.Exec("UPDATE users SET seasonPoints=seasonPoints + ? WHERE uid=?", points, b.uid); err != nil { log.Panic(err) }
+		if _, err := db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", points, b.uid); err != nil { log.Panic(err) }
 	}
 
-	if _, err := db.Exec("UPDATE bets SET handled=1, won=? WHERE id=?", points, b.id); err != nil { log.Panic(err) }
+	if _, err := db.Exec("UPDATE bets SET status=$1 WHERE id=$2", status, b.id); err != nil { log.Panic(err) }
 }
 
 func addPointsChallenge(winner int, c challenge) {
@@ -149,18 +147,18 @@ func addPointsChallenge(winner int, c challenge) {
 
     log.Printf("Awarding %v point to %v", c.points, winner)
 
-	row := db.QueryRow("SELECT seasonPoints FROM users WHERE uid=?", winner)
+	row := db.QueryRow("SELECT points FROM users WHERE uid=$1", winner)
 
 	var currPoints int
 	if err := row.Scan(&currPoints); err != nil {
 		if err == sql.ErrNoRows {
-			if _, err := db.Exec("INSERT INTO users (uid, seasonPoints) VALUES (?, ?)", winner, c.points); err != nil { log.Panic(err) }
+			if _, err := db.Exec("INSERT INTO users (uid, points) VALUES ($1, $2)", winner, c.points); err != nil { log.Panic(err) }
 		} else {
 			log.Panic(err)
 		}
 	} else {
-		if _, err := db.Exec("UPDATE users SET seasonPoints=seasonPoints + ? WHERE uid=?", c.points, winner); err != nil { log.Panic(err) }
+		if _, err := db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, winner); err != nil { log.Panic(err) }
 	}
 
-	if _, err := db.Exec("UPDATE challenges SET status=? WHERE id=?", ChallengeStatusHandled, c.id); err != nil { log.Panic(err) }
+	if _, err := db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusHandled, c.id); err != nil { log.Panic(err) }
 }

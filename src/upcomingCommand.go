@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
     "strconv"
-	_ "github.com/mattn/go-sqlite3"
+    _ "github.com/lib/pq"
 	dg "github.com/bwmarrin/discordgo"
 )
 
@@ -17,10 +17,10 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 
 	uid := getInteractUID(i)
 
-	betRows, err := db.Query("SELECT b.homeScore, b.awayScore, m.homeTeam, m.awayTeam, m.date " +
+	betRows, err := db.Query("SELECT b.homescore, b.awayscore, m.hometeam, m.awayteam, m.date " +
                              "FROM bets AS b " +
                              "JOIN matches AS m ON b.matchid=m.id " +
-                             "WHERE b.uid=? AND b.handled=0", uid)
+                             "WHERE b.uid=$1 AND b.status=$2", uid, BetStatusUnhandled)
 	defer betRows.Close()
     if err != nil { log.Panic(err) }
 
@@ -36,8 +36,8 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 	for betRows.Next() {
         var b bet
 		var m match
-		betRows.Scan(&b.homeScore, &b.awayScore,
-                     &m.homeTeam, &m.awayTeam, &m.date)
+		betRows.Scan(&b.homescore, &b.awayscore,
+                     &m.hometeam, &m.awayteam, &m.date)
 
 		date, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 		daysUntil := math.Round(time.Until(date).Hours() / 24)
@@ -56,8 +56,8 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
         matchesMsg := ""
 
         for _, m := range matches {
-            matchesMsg += fmt.Sprintf("%v (**%v**) vs %v (**%v**)\n", m.m.homeTeam, m.b.homeScore,
-                                                                      m.m.awayTeam, m.b.awayScore)
+            matchesMsg += fmt.Sprintf("%v (**%v**) vs %v (**%v**)\n", m.m.hometeam, m.b.homescore,
+                                                                      m.m.awayteam, m.b.awayscore)
         }
 
         if math.Signbit(daysUntil) {
@@ -79,11 +79,11 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
 	}
 
     challengesMsg := ""
-    rows, err := db.Query("SELECT c.challengerUID, c.challengeeUID, c.points, c.condition, " +
-                          "m.homeTeam, m.awayTeam " +
+    rows, err := db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, " +
+                          "m.hometeam, m.awayteam " +
                           "FROM challenges AS c " +
-                          "JOIN matches AS m ON c.matchID=m.id " +
-                          "WHERE (c.challengerUID=? OR c.challengeeUID=?) AND c.status=?", uid, uid, ChallengeStatusAccepted)
+                          "JOIN matches AS m ON c.matchid=m.id " +
+                          "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND c.status=$3", uid, uid, ChallengeStatusAccepted)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 
@@ -98,26 +98,26 @@ func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
         var c challenge
         var m match
 
-        rows.Scan(&c.challengerUID, &c.challengeeUID, &c.points, &c.condition,
-                  &m.homeTeam, &m.awayTeam)
+        rows.Scan(&c.challengerid, &c.challengeeid, &c.points, &c.condition,
+                  &m.hometeam, &m.awayteam)
 
         challenges = append(challenges, challAndMatch{c: c, m: m})
     }
 
     if len(challenges) != 0 {
         for _, c := range challenges {
-            challenger, err := s.User(strconv.Itoa(c.c.challengerUID))
+            challenger, err := s.User(strconv.Itoa(c.c.challengerid))
             if err != nil { log.Panic(err) }
-            challengee, err := s.User(strconv.Itoa(c.c.challengeeUID))
+            challengee, err := s.User(strconv.Itoa(c.c.challengeeid))
             if err != nil { log.Panic(err) }
 
             winOrLose := "vinner"
-            if c.c.condition == "awayTeam" {
+            if c.c.condition == ChallengeConditionWinnerAway {
                 winOrLose = "förlorar"
             }
 
             challengesMsg += fmt.Sprintf("**%v** utmanar **%v** om att **%v** %v mot **%v** för **%v** poäng\n",
-                                        challenger.Username, challengee.Username, c.m.homeTeam, winOrLose, c.m.awayTeam, c.c.points)
+                                        challenger.Username, challengee.Username, c.m.hometeam, winOrLose, c.m.awayteam, c.c.points)
         }
 
         fields = append(fields, &dg.MessageEmbedField{

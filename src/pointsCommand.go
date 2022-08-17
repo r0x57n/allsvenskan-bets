@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"log"
-	_ "github.com/mattn/go-sqlite3"
+    _ "github.com/lib/pq"
 	dg "github.com/bwmarrin/discordgo"
 )
 
@@ -14,7 +14,7 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
 	defer db.Close()
 
-	rows, err := db.Query("SELECT uid, seasonPoints FROM users ORDER BY seasonPoints DESC LIMIT 10")
+	rows, err := db.Query("SELECT uid, points FROM users ORDER BY points DESC LIMIT 10")
 	defer rows.Close()
 	if err != nil { log.Panic(err) }
 
@@ -39,7 +39,7 @@ func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
     }
 
     user := getUserFromInteraction(db, i)
-	userPoints := fmt.Sprintf("Du har samlat ihop **%v** poäng i år!", user.seasonPoints)
+	userPoints := fmt.Sprintf("Du har samlat ihop **%v** poäng i år!", user.points)
 
     fields := []*dg.MessageEmbedField {
         {

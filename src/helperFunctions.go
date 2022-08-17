@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 	dg "github.com/bwmarrin/discordgo"
 )
 
@@ -64,8 +64,13 @@ func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m match) bool {
    We take care to let the SQL package prepare the statements, see: https://go.dev/doc/database/sql-injection
 */
 
+func getSqlInfo() string {
+    return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+                        DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME)
+}
+
 func connectDB() *sql.DB {
-    db, err := sql.Open(DB_TYPE, DB)
+    db, err := sql.Open(DB_TYPE, getSqlInfo())
     if err != nil {
         log.Fatalf("Couldn't connect to database: %v", err)
     }
@@ -76,12 +81,12 @@ func connectDB() *sql.DB {
 func getUser(db *sql.DB, uid string) user {
     var u user
 
-	err := db.QueryRow("SELECT uid, seasonPoints, bank, viewable, interactable FROM users WHERE uid=?", uid).
-              Scan(&u.uid, &u.seasonPoints, &u.bank, &u.viewable, &u.interactable)
+	err := db.QueryRow("SELECT uid, points, bank, viewable, interactable FROM users WHERE uid=$1", uid).
+              Scan(&u.uid, &u.points, &u.bank, &u.viewable, &u.interactable)
 
 	if err != nil {
         if err == sql.ErrNoRows {
-            _, err = db.Exec("INSERT INTO users (uid) VALUES (?)", uid)
+            _, err = db.Exec("INSERT INTO users (uid) VALUES ($1)", uid)
             if err != nil { log.Panic(err) }
         } else {
             log.Panic(err)
@@ -95,7 +100,7 @@ func getCurrentRound(db *sql.DB) int {
     round := -1
 	today := time.Now().Format("2006-01-02")
 
-    err := db.QueryRow("SELECT round FROM matches WHERE date(date)>=? AND finished='0' ORDER BY date", today).Scan(&round)
+    err := db.QueryRow("SELECT round FROM matches WHERE date(date)>=$1 AND finished='0' ORDER BY date", today).Scan(&round)
     if err != nil {
         if err == sql.ErrNoRows {
             return round
@@ -108,7 +113,7 @@ func getCurrentRound(db *sql.DB) int {
 func getMatches(db *sql.DB, where string, args ...any) *[]match {
     var matches []match
 
-    rows, err := db.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE " + where, args...)
+    rows, err := db.Query("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished FROM matches WHERE " + where, args...)
 	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
@@ -118,7 +123,7 @@ func getMatches(db *sql.DB, where string, args ...any) *[]match {
 
 	for rows.Next() {
 		var m match
-		if err := rows.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished); err != nil { log.Panic(err) }
+		if err := rows.Scan(&m.id, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore, &m.finished); err != nil { log.Panic(err) }
 		matches = append(matches, m)
 	}
 
@@ -128,8 +133,8 @@ func getMatches(db *sql.DB, where string, args ...any) *[]match {
 func getMatch(db *sql.DB, where string, args ...any) match {
     var m match
 
-	err := db.QueryRow("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished, round FROM matches WHERE " + where, args...).
-              Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished, &m.round)
+	err := db.QueryRow("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished, round FROM matches WHERE " + where, args...).
+              Scan(&m.id, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore, &m.finished, &m.round)
 	if err != nil {
         if err == sql.ErrNoRows {
             return match { id: -1 }
@@ -144,7 +149,7 @@ func getMatch(db *sql.DB, where string, args ...any) match {
 func getBets(db *sql.DB, where string, args ...any) *[]bet {
     var bets []bet
 
-	rows, err := db.Query("SELECT id, uid, matchid, homeScore, awayScore, handled, won, round FROM bets WHERE " + where, args...)
+	rows, err := db.Query("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE " + where, args...)
 	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
@@ -154,7 +159,7 @@ func getBets(db *sql.DB, where string, args ...any) *[]bet {
 
 	for rows.Next() {
         var b bet
-		if err := rows.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.handled, &b.won, &b.round); err != nil { log.Panic(err) }
+		if err := rows.Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status); err != nil { log.Panic(err) }
 		bets = append(bets, b)
 	}
 
@@ -164,8 +169,8 @@ func getBets(db *sql.DB, where string, args ...any) *[]bet {
 func getBet(db *sql.DB, where string, args ...any) bet {
     var b bet
 
-	err := db.QueryRow("SELECT id, uid, matchid, homeScore, awayScore, handled, won, round FROM bets WHERE " + where, args...).
-              Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.handled, &b.won, &b.round)
+	err := db.QueryRow("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE " + where, args...).
+              Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status)
 	if err != nil {
         if err == sql.ErrNoRows {
             return bet { id: -1 }
@@ -180,7 +185,7 @@ func getBet(db *sql.DB, where string, args ...any) bet {
 func getChallenges(db *sql.DB, where string, args ...any) *[]challenge {
     var challenges []challenge
 
-	rows, err := db.Query("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE " + where, args...)
+	rows, err := db.Query("SELECT id, challengerid, challengeeid, type, matchid, points, condition, status FROM challenges WHERE " + where, args...)
 	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
@@ -190,7 +195,7 @@ func getChallenges(db *sql.DB, where string, args ...any) *[]challenge {
 
 	for rows.Next() {
         var c challenge
-		if err := rows.Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status); err != nil { log.Panic(err) }
+		if err := rows.Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status); err != nil { log.Panic(err) }
 		challenges = append(challenges, c)
 	}
 
@@ -200,8 +205,8 @@ func getChallenges(db *sql.DB, where string, args ...any) *[]challenge {
 func getChallenge(db *sql.DB, where string, args ...any) challenge {
     var c challenge
 
-	err := db.QueryRow("SELECT id, challengerUID, challengeeUID, type, matchID, points, condition, status FROM challenges WHERE " + where, args...).
-              Scan(&c.id, &c.challengerUID, &c.challengeeUID, &c.typ, &c.matchID, &c.points, &c.condition, &c.status)
+	err := db.QueryRow("SELECT id, challengerid, challengeeid, type, matchid, points, condition, status FROM challenges WHERE " + where, args...).
+              Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status)
 	if err != nil {
         if err == sql.ErrNoRows {
             return challenge { id: -1 }
@@ -225,7 +230,7 @@ func getCurrentMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMe
 
     round := getCurrentRound(db)
 	today := time.Now().Format(DB_TIME_LAYOUT)
-    matches := *getMatches(db, "round=? AND date>=?", round, today)
+    matches := *getMatches(db, "round=$1 AND date>=$2", round, today)
 
 	if len(matches) == 0 {
         return &options
@@ -244,7 +249,7 @@ func getCurrentMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMe
 
         daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)
 
-        label := fmt.Sprintf("%v vs %v", m.homeTeam, m.awayTeam)
+        label := fmt.Sprintf("%v vs %v", m.hometeam, m.awayteam)
         description := fmt.Sprintf("om %v dagar (%v)", daysUntilMatch, matchDate.Format(MSG_TIME_LAYOUT))
 
         options = append(options, dg.SelectMenuOption{
@@ -284,7 +289,7 @@ func getPointsAsOptions(values string, maxPoints int) *[]dg.SelectMenuOption {
 }
 
 
-func getScoresAsOptions(matchID int, defScore int) *[]dg.SelectMenuOption {
+func getScoresAsOptions(matchid int, defScore int) *[]dg.SelectMenuOption {
 	options := []dg.SelectMenuOption {}
 
 	for i := 0; i < 25; i++ {
@@ -292,7 +297,7 @@ func getScoresAsOptions(matchID int, defScore int) *[]dg.SelectMenuOption {
 
         options = append(options, dg.SelectMenuOption{
             Label: strconv.Itoa(i),
-            Value: fmt.Sprintf("%v_%v", matchID, i),
+            Value: fmt.Sprintf("%v_%v", matchid, i),
             Default: isChosenScore,
         })
 	}

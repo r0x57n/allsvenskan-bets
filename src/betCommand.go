@@ -1,21 +1,21 @@
 package main
 
 import (
-	"fmt"
-	"strconv"
+    "fmt"
+    "strconv"
     "strings"
-	"log"
+    "log"
     "time"
-	_ "github.com/mattn/go-sqlite3"
-	dg "github.com/bwmarrin/discordgo"
+    _ "github.com/lib/pq"
+    dg "github.com/bwmarrin/discordgo"
 )
 
 // Command: slåvad
 func betCommand(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
-	defer db.Close()
+    defer db.Close()
 
-	options := *getCurrentMatchesAsOptions(db)
+    options := *getCurrentMatchesAsOptions(db)
     if len(options) == 0 {
         addInteractionResponse(s, i, NewMsg, "Inga matcher tillgängliga! :(")
         return
@@ -23,21 +23,21 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     uid := getInteractUID(i)
 
-    // map matchIDs to bets so we can easier build strings later
+    // map match id:s to bets so we can easier build strings later
     matchidToBet := make(map[string]bet)
-    betsRows, err := db.Query("SELECT matchid, homeScore, awayScore FROM bets WHERE handled=0 AND uid=?", uid)
+    betsRows, err := db.Query("SELECT matchid, homescore, awayscore FROM bets WHERE status=$1 AND uid=$2", BetStatusUnhandled, uid)
     if err != nil { log.Panic(err) }
 
     for betsRows.Next() {
         var b bet
-        betsRows.Scan(&b.matchid, &b.homeScore, &b.awayScore)
+        betsRows.Scan(&b.matchid, &b.homescore, &b.awayscore)
         matchidToBet[strconv.Itoa(b.matchid)] = b
     }
 
     if len(matchidToBet) > 0 {
         for i, option := range options {
             b := matchidToBet[option.Value]
-            options[i].Label += fmt.Sprintf(" [%v-%v]", b.homeScore, b.awayScore)
+            options[i].Label += fmt.Sprintf(" [%v-%v]", b.homescore, b.awayscore)
         }
     }
 
@@ -67,12 +67,12 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
 	uid := getInteractUID(i)
 
     earlierBetScore := [2]int {-1, -1}
-    earlierBet := getBet(db, "uid=? AND matchid=?", uid, mid)
+    earlierBet := getBet(db, "uid=$1 AND matchid=$2", uid, mid)
     if earlierBet.id != -1 {
-        earlierBetScore[0], earlierBetScore[1] = earlierBet.homeScore, earlierBet.awayScore
+        earlierBetScore[0], earlierBetScore[1] = earlierBet.homescore, earlierBet.awayscore
     }
 
-    m := getMatch(db, "id=?", mid)
+    m := getMatch(db, "id=$1", mid)
     if m.id == -1 {
         addErrorResponse(s, i, UpdateMsg)
         return
@@ -89,8 +89,8 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    msg := fmt.Sprintf("Hemmalag: %v\n", m.homeTeam)
-    msg += fmt.Sprintf("Bortalag: %v\n\n", m.awayTeam)
+    msg := fmt.Sprintf("Hemmalag: %v\n", m.hometeam)
+    msg += fmt.Sprintf("Bortalag: %v\n\n", m.awayteam)
     msg += fmt.Sprintf("Spelas: %v, klockan %v\n\n", datetime.Format("2006-01-02"), datetime.Format("15:04"))
     msg += fmt.Sprintf("**Poäng** *(hemmalag överst)*")
 
@@ -120,36 +120,36 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
 
 func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where BetLocation) {
     db := connectDB()
-	defer db.Close()
+    defer db.Close()
 
     values := getValuesOrRespond(s, i, UpdateMsg)
     if values == nil { return }
 
-	var (
-		uid = getInteractUID(i)
+    var (
+        uid = getInteractUID(i)
         splitted = strings.Split(values[0], "_")
-		mid = splitted[0]
-		homeScore = "0"
-		awayScore = "0"
+        mid = splitted[0]
+        homescore = "0"
+        awayscore = "0"
         score = ""
         awayOrHome = ""
-	)
+    )
 
-	switch where {
-		case Home:
-            homeScore = splitted[1]
-            score = homeScore
+    switch where {
+        case Home:
+            homescore = splitted[1]
+            score = homescore
             awayOrHome = "home"
-		case Away:
-            awayScore = splitted[1]
-            score = awayScore
+        case Away:
+            awayscore = splitted[1]
+            score = awayscore
             awayOrHome = "away"
-		default:
+        default:
             addErrorResponse(s, i, UpdateMsg)
             return
-	}
+    }
 
-    m := getMatch(db, "id=?", mid)
+    m := getMatch(db, "id=$1", mid)
     if m.id == -1 {
         addErrorResponse(s, i, UpdateMsg)
         return
@@ -161,14 +161,14 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where BetLocation
     }
 
     var err error
-    hasBettedBefore := getBet(db, "uid=? AND matchid=?", uid, mid).id != -1
-	if hasBettedBefore {
-        _, err = db.Exec("UPDATE bets SET " + awayOrHome + "Score=? WHERE (uid, matchid) IS (?, ?)", score, uid, mid)
-	} else {
-		_, err = db.Exec("INSERT INTO bets (uid, matchid, homeScore, awayScore, round) VALUES (?, ?, ?, ?, ?)", uid, mid, homeScore, awayScore, m.round)
-	}
-
-    if err != nil { log.Panic(err) }
+    hasBettedBefore := getBet(db, "uid=$1 AND matchid=$2", uid, mid).id != -1
+    if hasBettedBefore {
+        _, err = db.Exec("UPDATE bets SET " + awayOrHome + "score=$1 WHERE uid=$2 AND matchid=$3", score, uid, mid)
+        if err != nil { log.Panic(err) }
+    } else {
+        _, err = db.Exec("INSERT INTO bets (uid, matchid, homescore, awayscore) VALUES ($1, $2, $3, $4)", uid, mid, homescore, awayscore)
+        if err != nil { log.Panic(err) }
+    }
 
     addNoInteractionResponse(s, i)
 }

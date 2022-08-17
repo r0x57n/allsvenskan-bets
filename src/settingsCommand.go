@@ -2,7 +2,7 @@ package main
 
 import (
     "log"
-    _ "github.com/mattn/go-sqlite3"
+    _ "github.com/lib/pq"
     dg "github.com/bwmarrin/discordgo"
 )
 
@@ -15,7 +15,7 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
     u := getUser(db, uid)
 
     defOption := true
-    if u.viewable == 0 {
+    if !u.viewable {
         defOption = false
     }
 
@@ -33,7 +33,7 @@ func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
     }
 
     defOption = true
-    if u.interactable == 0 {
+    if !u.interactable {
         defOption = false
     }
 
@@ -112,7 +112,7 @@ func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
 
     uid := getInteractUID(i)
 
-    _, err := db.Exec("UPDATE users SET viewable=? WHERE uid=?", vals[0], uid)
+    _, err := db.Exec("UPDATE users SET viewable=$1 WHERE uid=$2", vals[0], uid)
     if err != nil { log.Panic(err) }
 
     addNoInteractionResponse(s, i)
@@ -127,7 +127,7 @@ func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
 
     uid := getInteractUID(i)
 
-    _, err := db.Exec("UPDATE users SET interactable=? WHERE uid=?", vals[0], uid)
+    _, err := db.Exec("UPDATE users SET interactable=$1 WHERE uid=$2", vals[0], uid)
     if err != nil { log.Panic(err) }
 
     addNoInteractionResponse(s, i)

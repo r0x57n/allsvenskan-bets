@@ -5,7 +5,7 @@ import (
     "strconv"
     "log"
     "time"
-    _ "github.com/mattn/go-sqlite3"
+    _ "github.com/lib/pq"
     dg "github.com/bwmarrin/discordgo"
 )
 
@@ -15,7 +15,7 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     uid := getInteractUID(i)
 
-    allBets := *getBets(db, "uid=? AND handled=?", uid, 0)
+    allBets := *getBets(db, "uid=$1 AND status=$2", uid, BetStatusUnhandled)
 
     labels := make(map[int]string)
     dates := make(map[int]string)
@@ -23,11 +23,11 @@ func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
     var regrettableBets []bet
 
     for _, b := range allBets {
-        m := getMatch(db, "id=?", b.matchid)
+        m := getMatch(db, "id=$1", b.matchid)
         matchDate, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 
         if time.Now().Before(matchDate) {
-            labels[b.id] = fmt.Sprintf("%v vs %v [%v-%v]", m.homeTeam, m.awayTeam, b.homeScore, b.awayScore)
+            labels[b.id] = fmt.Sprintf("%v vs %v [%v-%v]", m.hometeam, m.awayteam, b.homescore, b.awayscore)
             dates[b.id] = matchDate.Format(MSG_TIME_LAYOUT)
             regrettableBets = append(regrettableBets, b)
         }
@@ -75,7 +75,7 @@ func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
     var b bet
     err := db.QueryRow("SELECT m.date, b.uid FROM bets AS b " +
                        "JOIN matches AS m ON b.matchid=m.id " +
-                       "WHERE b.id=?", bid).Scan(&m.date, &b.uid)
+                       "WHERE b.id=$1", bid).Scan(&m.date, &b.uid)
     if err != nil { log.Panic(err) }
 
     components := []dg.MessageComponent {}
@@ -89,7 +89,7 @@ func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
             return
         }
 
-        _, err = db.Exec("DELETE FROM bets WHERE id=?", bid)
+        _, err = db.Exec("DELETE FROM bets WHERE id=$1", bid)
         msg = "Vadslagning borttagen!"
     }
 

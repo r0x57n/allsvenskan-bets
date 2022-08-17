@@ -1,22 +1,22 @@
 package main
 
 import (
-	"fmt"
-	"strconv"
-	"log"
-	_ "github.com/mattn/go-sqlite3"
-	dg "github.com/bwmarrin/discordgo"
+    "fmt"
+    "strconv"
+    "log"
+    _ "github.com/lib/pq"
+    dg "github.com/bwmarrin/discordgo"
 )
 
 // Command: vadslagningar
 func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
-	defer db.Close()
+    defer db.Close()
 
     // Get options and parse
     options := getOptionsOrRespond(s, i, NewMsg)
     if options == nil { return }
-	uid := options[0].Value
+    uid := options[0].Value
 
     listTypes := All
     if len(options) == 2 {
@@ -27,28 +27,28 @@ func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     userToView := getUser(db, fmt.Sprint(uid))
     userNotViewingThemselves := userToView.uid != getUserFromInteraction(db, i).uid
-    if userToView.viewable == 0 && userNotViewingThemselves {
-		desc := "Användaren har valt att dölja sina vadslagningar."
+    if !userToView.viewable && userNotViewingThemselves {
+        desc := "Användaren har valt att dölja sina vadslagningar."
         addInteractionResponse(s, i, NewMsg, desc)
         return
-    } else if userToView.viewable == 0 && !userNotViewingThemselves {
+    } else if !userToView.viewable && !userNotViewingThemselves {
         desc = "Andra användare kan inte se dina vadslagningar."
     }
 
     where := ""
     switch listTypes {
         case Lost:
-            where = "uid=? AND handled=1 AND won=0"
+            where = "uid=$1 AND status=1"
         case Won:
-            where = "uid=? AND handled=1 AND won=1"
+            where = "uid=$1 AND status=1"
         case All:
-            where = "uid=? AND handled=1"
+            where = "uid=$1 AND status=1"
         default:
             addErrorResponse(s, i, NewMsg, "Got unidentifiable listTypes in listBetsCommand.")
             return
     }
 
-    rows, err := db.Query("SELECT b.homeScore, b.awayScore, b.matchid, b.won, m.homeTeam, m.awayTeam " +
+    rows, err := db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam " +
                           "FROM bets AS b " +
                           "JOIN matches AS m ON b.matchid=m.id " +
                           "WHERE " + where, uid)
@@ -61,17 +61,19 @@ func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
         var b bet
         var m match
 
-        rows.Scan(&b.homeScore, &b.awayScore, &b.matchid, &b.won, &m.homeTeam, &m.awayTeam)
+        rows.Scan(&b.homescore, &b.awayscore, &b.matchid, &b.status, &m.hometeam, &m.awayteam)
 
-        switch b.won {
-            case 0:
+        switch b.status {
+            case BetStatusLost:
                 if lostBets == "-" { lostBets = "" }
-                lostBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
-            case 1:
+                lostBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.hometeam, b.homescore, m.awayteam, b.awayscore)
+            case BetStatusWon:
                 if wonBets == "-" { wonBets = "" }
-                wonBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.homeTeam, b.homeScore, m.awayTeam, b.awayScore)
+                wonBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.hometeam, b.homescore, m.awayteam, b.awayscore)
+            case BetStatusUnhandled:
+                continue
             default:
-                addErrorResponse(s, i, NewMsg, "Got unidentifiable b.won in listBetsCommand.")
+                addErrorResponse(s, i, NewMsg, "Got unidentifiable b.status in listBetsCommand.")
                 return
         }
     }
@@ -80,11 +82,11 @@ func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
         desc = fmt.Sprintf("Användaren har inga vadslagningar ännu!", )
     }
 
-    rows, err = db.Query("SELECT c.challengerUID, c.challengeeUID, c.points, c.condition, " +
-                         "m.homeTeam, m.awayTeam " +
+    rows, err = db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, " +
+                         "m.hometeam, m.awayteam " +
                          "FROM challenges AS c " +
-                         "JOIN matches AS m ON c.matchID=m.id " +
-                         "WHERE (c.challengerUID=? OR c.challengeeUID=?) AND c.status=?", uid, uid, ChallengeStatusHandled)
+                         "JOIN matches AS m ON c.matchid=m.id " +
+                         "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND c.status=$3", uid, uid, ChallengeStatusHandled)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 
@@ -99,22 +101,22 @@ func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
         var c challenge
         var m match
 
-        rows.Scan(&c.challengerUID, &c.challengeeUID, &c.points, &c.condition,
-                  &m.homeTeam, &m.awayTeam)
+        rows.Scan(&c.challengerid, &c.challengeeid, &c.points, &c.condition,
+                  &m.hometeam, &m.awayteam)
 
-        challenger, err := s.User(strconv.Itoa(c.challengerUID))
+        challenger, err := s.User(strconv.Itoa(c.challengerid))
         if err != nil { log.Panic(err) }
-        challengee, err := s.User(strconv.Itoa(c.challengeeUID))
+        challengee, err := s.User(strconv.Itoa(c.challengeeid))
         if err != nil { log.Panic(err) }
 
         winOrLose := "vinna"
-        if c.condition == "awayTeam" {
+        if c.condition == ChallengeConditionWinnerAway {
             winOrLose = "förlora"
         }
 
         if challenges == "-" { challenges = "" }
         challenges += fmt.Sprintf("**%v** utmanade **%v** om att **%v** skulle %v mot **%v** för **%v** poäng\n",
-                                    challenger.Username, challengee.Username, m.homeTeam, winOrLose, m.awayTeam, c.points)
+                                    challenger.Username, challengee.Username, m.hometeam, winOrLose, m.awayteam, c.points)
     }
 
     fields := []*dg.MessageEmbedField {}

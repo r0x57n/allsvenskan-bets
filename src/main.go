@@ -18,8 +18,7 @@ import (
 */
 
 const (
-	DB = "./bets.db"
-	DB_TYPE = "sqlite3"
+	DB_TYPE = "postgres"
 	DB_TIME_LAYOUT = time.RFC3339
     MSG_TIME_LAYOUT = "2006-01-02 kl. 15:04"
     VERSION = "0.7.0" // major.minor.patch
@@ -33,12 +32,17 @@ const (
 */
 
 var (
-	GUILD_ID  = flag.String("guild", "", "Test guild ID")
-	BOT_TOKEN = flag.String("token", "", "Bot access token")
-	APP_ID    = flag.String("app", "", "Application ID")
-    OWNER     = flag.String("owner", "", "Owner of the bot")
-    DELETE    = flag.Bool("delete", false, "Remove all commands")
-    UPDATE    = flag.Bool("update", false, "Update/add all commands")
+	GUILD_ID    = flag.String("guild", "", "Test guild ID")
+	BOT_TOKEN   = flag.String("token", "", "Bot access token")
+	APP_ID      = flag.String("app", "", "Application ID")
+    OWNER       = flag.String("owner", "", "Owner of the bot")
+    DELETE      = flag.Bool("delete", false, "Remove all commands")
+    UPDATE      = flag.Bool("update", false, "Update/add all commands")
+    DB_HOST     = ""
+    DB_PORT     = 5432
+    DB_USER     = ""
+    DB_PASSWORD = ""
+    DB_NAME     = ""
 )
 
 
@@ -56,44 +60,41 @@ type cmd struct {
 
 type match struct {
 	id int
-	homeTeam string
-	awayTeam string
+	hometeam string
+	awayteam string
 	date string
-	scoreHome int
-	scoreAway int
-	finished int
+	homescore int
+	awayscore int
     round int
+	finished bool
 }
 
 type bet struct {
 	id int
 	uid int
 	matchid int
-	homeScore int
-	awayScore int
-	handled int
-    won int
-    round int
+	homescore int
+	awayscore int
+    status BetStatus
 }
 
 type challenge struct {
     id int
-    challengerUID int
-    challengeeUID int
-    typ int
-    matchID int
+    challengerid int
+    challengeeid int
+    typ ChallengeType
+    matchid int
     points int
-    condition string
+    condition ChallengeCondition
     status ChallengeStatus
-    round int
 }
 
 type user struct {
     uid int
-    seasonPoints int
+    points int
     bank string
-    viewable int
-    interactable int
+    viewable bool
+    interactable bool
 }
 
 
@@ -107,6 +108,13 @@ const (
     CommandCategoryBetting = "Slå vad"
     CommandCategoryListing = "Vadslagningar"
     CommandCategoryAdmin = "Admin"
+)
+
+type BetStatus int
+const (
+    BetStatusUnhandled = iota
+    BetStatusWon
+    BetStatusLost
 )
 
 type ChallengeStatus int
@@ -123,6 +131,12 @@ const (
 type ChallengeType int
 const (
     ChallengeTypeWinner = iota
+)
+
+type ChallengeCondition int
+const (
+    ChallengeConditionWinnerHome = iota
+    ChallengeConditionWinnerAway
 )
 
 type BetType int
@@ -236,6 +250,11 @@ func main() {
     if *OWNER == "" {
         *OWNER = config.String("owner")
     }
+
+    DB_HOST     = config.String("dbHost")
+    DB_USER     = config.String("dbName")
+    DB_PASSWORD = config.String("dbPass")
+    DB_NAME     = config.String("dbName")
 
 	// Initialize and start the bot
 	s := initializeBot()

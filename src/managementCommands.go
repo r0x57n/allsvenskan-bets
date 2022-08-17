@@ -3,7 +3,7 @@ package main
 import (
     "log"
     "fmt"
-    _ "github.com/mattn/go-sqlite3"
+    _ "github.com/lib/pq"
     dg "github.com/bwmarrin/discordgo"
 )
 

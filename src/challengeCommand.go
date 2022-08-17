@@ -22,14 +22,13 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"strconv"
-	"strings"
-	"time"
-
-	dg "github.com/bwmarrin/discordgo"
-	_ "github.com/mattn/go-sqlite3"
+    "fmt"
+    "log"
+    "strconv"
+    "strings"
+    "time"
+    dg "github.com/bwmarrin/discordgo"
+    _ "github.com/lib/pq"
 )
 
 func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
@@ -46,8 +45,15 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
     interactionUID := getInteractUID(i)
 
     challengeeUser := getUser(db, challengee.ID)
-    if challengeeUser.interactable == 0 {
+    if !challengeeUser.interactable {
         addInteractionResponse(s, i, NewMsg, "Användaren tillåter inte utmaningar.")
+        return
+    }
+
+    if !getUserFromInteraction(db, i).interactable {
+        msg := "Du måste själv tillåta utmaningar för att kunna utmana andra. "
+        msg += "Se /inställingar för valet."
+        addInteractionResponse(s, i, NewMsg, msg)
         return
     }
 
@@ -56,7 +62,7 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    challenges := *getChallenges(db, "(challengeeUID=? OR challengerUID=?) AND (status=? OR status=? OR status=? OR status=?)",
+    challenges := *getChallenges(db, "(challengeeid=$1 OR challengerid=$2) AND (status=$3 OR status=$4 OR status=$5 OR status=$6)",
                                       interactionUID, interactionUID, ChallengeStatusUnhandled, ChallengeStatusSent, ChallengeStatusAccepted, ChallengeStatusRequestForfeit)
     if len(challenges) >= 25 {
         addInteractionResponse(s, i, NewMsg, "Du kan inte ha mer än 25 utmaningar.")
@@ -72,19 +78,20 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
     }
 
     // Remove matches where a challenge already exists
-    for i, option := range options {
+    realOptions := []dg.SelectMenuOption{}
+    for _, option := range options {
         matchid := strings.Split(option.Value, "_")[1]
 
-        existingChallenge := getChallenge(db, "((challengerUID=? AND challengeeUID=?) OR " +
-                                              "(challengeeUID=? AND challengerUID=?)) " +
-                                              "AND matchID=? " +
-                                              "AND status!=? AND status!=?",
+        existingChallenge := getChallenge(db, "((challengerid=$1 AND challengeeid=$2) OR " +
+                                              "(challengeeid=$3 AND challengerid=$4)) " +
+                                              "AND matchid=$5 " +
+                                              "AND status!=$6 AND status!=$7",
                                               interactionUID, challengee.ID,
                                               interactionUID, challengee.ID,
                                               matchid,
                                               ChallengeStatusDeclined, ChallengeStatusForfeited)
-        if existingChallenge.id != -1 {
-            options = append(options[:i], options[i+1:]...)
+        if existingChallenge.id == -1 {
+            realOptions = append(realOptions, option)
         }
     }
 
@@ -95,7 +102,7 @@ func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
                 dg.SelectMenu {
                     Placeholder: "Vilken match vill du utmana om?",
                     CustomID: "challSelectWinner",
-                    Options: options,
+                    Options: realOptions,
                 },
             },
         },
@@ -118,11 +125,11 @@ func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
     challengee, err := s.User(splitted[0])
     if err != nil { log.Panic(err) }
 
-    matchID := splitted[1]
+    matchid := splitted[1]
 
-    m := getMatch(db, "id=?", matchID)
+    m := getMatch(db, "id=$1", matchid)
 
-    val := challengee.ID + "_" + matchID + "_"
+    val := challengee.ID + "_" + matchid + "_"
 
     components := []dg.MessageComponent {
         dg.ActionsRow {
@@ -132,12 +139,12 @@ func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
                     Placeholder: "Välj ett lag...",
                     Options: []dg.SelectMenuOption{
                         {
-                            Label: m.homeTeam,
-                            Value: val + "homeTeam",
+                            Label: m.hometeam,
+                            Value: val + "hometeam",
                         },
                         {
-                            Label: m.awayTeam,
-                            Value: val + "awayTeam",
+                            Label: m.awayteam,
+                            Value: val + "awayteam",
                         },
                     },
                 },
@@ -163,8 +170,8 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
     interactionUID := getInteractUID(i)
 
     var (
-        challengerPoints = getUser(db, interactionUID).seasonPoints
-        challengeePoints = getUser(db, challengee.ID).seasonPoints
+        challengerPoints = getUser(db, interactionUID).points
+        challengeePoints = getUser(db, challengee.ID).points
         maxPoints = -1
     )
 
@@ -207,21 +214,21 @@ func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
     challengee, err := s.User(splitted[0])
     if err != nil { log.Panic(err) }
 
-    matchID := splitted[1]
+    matchid := splitted[1]
     winnerTeam := splitted[2]
     loserTeam := ""
     points := splitted[3]
 
     var m match
-    err = db.QueryRow("SELECT homeTeam, awayTeam FROM matches WHERE id=?", matchID).Scan(&m.homeTeam, &m.awayTeam)
+    err = db.QueryRow("SELECT hometeam, awayteam FROM matches WHERE id=$1", matchid).Scan(&m.hometeam, &m.awayteam)
     if err != nil { log.Panic(err) }
 
-    if winnerTeam == "homeTeam" {
-        winnerTeam = m.homeTeam
-        loserTeam = m.awayTeam
+    if winnerTeam == "hometeam" {
+        winnerTeam = m.hometeam
+        loserTeam = m.awayteam
     } else {
-        winnerTeam = m.awayTeam
-        loserTeam = m.homeTeam
+        winnerTeam = m.awayteam
+        loserTeam = m.hometeam
     }
 
     options := []dg.SelectMenuOption{
@@ -275,13 +282,18 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     challengee, err := s.User(splitted[0])
     if err != nil { log.Panic(err) }
 
-    matchID := splitted[1]
+    matchid := splitted[1]
     winnerTeam := splitted[2]
     points := splitted[3]
+    challCondition := ChallengeConditionWinnerHome
+
+    if winnerTeam == "awayteam" {
+        challCondition = ChallengeConditionWinnerAway
+    }
 
     // Security checks
     challengeeUser := getUser(db, challengee.ID)
-    if challengeeUser.interactable == 0 {
+    if !challengeeUser.interactable {
         addCompInteractionResponse(s, i, UpdateMsg, "Användaren tillåter inte utmaningar.", []dg.MessageComponent{})
         return
     }
@@ -291,26 +303,26 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    existingChallenge := getChallenge(db, "((challengerUID=? AND challengeeUID=?) OR " +
-                                          "(challengeeUID=? AND challengerUID=?)) " +
-                                          "AND matchID=? " +
-                                          "AND status!=? AND status!=?",
+    existingChallenge := getChallenge(db, "((challengerid=$1 AND challengeeid=$2) OR " +
+                                          "(challengeeid=$3 AND challengerid=$4)) " +
+                                          "AND matchid=$5 " +
+                                          "AND status!=$6 AND status!=$7",
                                            interactionUID, challengee.ID,
                                            interactionUID, challengee.ID,
-                                           matchID,
+                                           matchid,
                                            ChallengeStatusDeclined, ChallengeStatusForfeited)
     if existingChallenge.id != -1 {
         addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana samma spelare flera gånger.", []dg.MessageComponent{})
         return
     }
 
-    challenges := *getChallenges(db, "challengeeUID=? AND (status=? OR status=? OR status=? OR status=?)", challengee.ID, ChallengeStatusUnhandled, ChallengeStatusSent, ChallengeStatusAccepted, ChallengeStatusRequestForfeit)
+    challenges := *getChallenges(db, "challengeeid=$1 AND (status=$2 OR status=$3 OR status=$4 OR status=$5)", challengee.ID, ChallengeStatusUnhandled, ChallengeStatusSent, ChallengeStatusAccepted, ChallengeStatusRequestForfeit)
     if len(challenges) >= 25 {
         addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte ha mer än 25 utmaningar.", []dg.MessageComponent{})
         return
     }
 
-    m := getMatch(db, "id=?", matchID)
+    m := getMatch(db, "id=$1", matchid)
     if matchHasBegun(s, i, m) {
         addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte utmana om en match som redan startat.", []dg.MessageComponent{})
         return
@@ -318,17 +330,18 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
 
     pointsInt, err := strconv.Atoi(points)
     if err != nil { log.Panic(err) }
-    if challengeeUser.seasonPoints < pointsInt || challengerUser.seasonPoints < pointsInt {
+    if challengeeUser.points < pointsInt || challengerUser.points < pointsInt {
         addCompInteractionResponse(s, i, UpdateMsg, "Du eller den du utmanar har inte nog med poäng för att anta utmaningen.", []dg.MessageComponent{})
         return
     }
 
     // Write to database
-    _, err = db.Exec("UPDATE users SET seasonPoints=seasonPoints - ? WHERE uid=?", points, interactionUID)
+    _, err = db.Exec("UPDATE users SET points=points-$1 WHERE uid=$2", points, interactionUID)
     if err != nil { log.Panic(err) }
 
-    res, err := db.Exec("INSERT INTO challenges (challengerUID, challengeeUID, type, matchID, points, condition, round) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                         interactionUID, challengee.ID, 0, matchID, points, winnerTeam, getCurrentRound(db))
+    insertedCID := 0
+    err = db.QueryRow("INSERT INTO challenges (challengerid, challengeeid, type, matchid, points, condition) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+                     interactionUID, challengee.ID, ChallengeTypeWinner, matchid, points, challCondition).Scan(&insertedCID)
     if err != nil { log.Panic(err) }
 
     msg := "Utmaning har skickats och poängen har plockats från ditt konto. "
@@ -338,24 +351,21 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     components := []dg.MessageComponent {}
     addCompInteractionResponse(s, i, UpdateMsg, msg, components)
 
-    insertedCID, err := res.LastInsertId()
-    if err != nil { log.Fatal(err) }
-
     sendChallenge(s, interactionUID, challengee.ID, int(insertedCID), points)
 }
 
-func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid int, points string) {
+func sendChallenge(s *dg.Session, challengerID string, challengeeid string, cid int, points string) {
     db := connectDB()
     defer db.Close()
 
     var m match
     var c challenge
-    err := db.QueryRow("SELECT m.homeTeam, m.awayTeam, m.date, c.id, c.condition FROM challenges AS c " +
-                       "JOIN matches AS m ON m.id = c.matchID " +
-                       "WHERE c.id=?", cid).Scan(&m.homeTeam, &m.awayTeam, &m.date, &c.id, &c.condition)
+    err := db.QueryRow("SELECT m.hometeam, m.awayteam, m.date, c.id, c.condition FROM challenges AS c " +
+                       "JOIN matches AS m ON m.id = c.matchid " +
+                       "WHERE c.id=$1", cid).Scan(&m.hometeam, &m.awayteam, &m.date, &c.id, &c.condition)
     if err != nil { log.Panic(err) }
 
-    _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", ChallengeStatusSent, c.id)
+    _, err = db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusSent, c.id)
     if err != nil { log.Panic(err) }
 
     options := []dg.SelectMenuOption{
@@ -381,11 +391,11 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
         },
     }
 
-    winner, loser := m.homeTeam, m.awayTeam
+    winner, loser := m.hometeam, m.awayteam
 
-    if c.condition == "awayTeam" {
-        winner = m.awayTeam
-        loser = m.homeTeam
+    if c.condition == ChallengeConditionWinnerAway {
+        winner = m.awayteam
+        loser = m.hometeam
     }
 
     challenger, _ := s.User(challengerID)
@@ -397,7 +407,7 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeID string, cid 
     msg += fmt.Sprintf("Vill du satsa emot?\n\n")
     msg += fmt.Sprintf("*du kan stänga av utmaningar via **/inställningar** kommandot*")
 
-    dmcid, _ := s.UserChannelCreate(challengeeID)
+    dmcid, _ := s.UserChannelCreate(challengeeid)
     s.ChannelMessageSendComplex(dmcid.ID, &dg.MessageSend{
         Content: msg,
         Components: components,
@@ -422,9 +432,9 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
     status := ChallengeStatusUnhandled
     plusOrMinus := ""
 
-    c := getChallenge(db, "id=?", cid)
-    m := getMatch(db, "id=?", c.matchID)
-    challengee := getUser(db, strconv.Itoa(c.challengeeUID))
+    c := getChallenge(db, "id=$1", cid)
+    m := getMatch(db, "id=$1", c.matchid)
+    challengee := getUser(db, strconv.Itoa(c.challengeeid))
 
     // Security checks
     if c.status != ChallengeStatusSent {
@@ -432,7 +442,7 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    challenges := *getChallenges(db, "challengeeUID=? AND (status=? OR status=? OR status=? OR status=?)", challengee.uid, ChallengeStatusUnhandled, ChallengeStatusSent, ChallengeStatusAccepted, ChallengeStatusRequestForfeit)
+    challenges := *getChallenges(db, "challengeeid=$1 AND (status=$2 OR status=$3 OR status=$4 OR status=$5)", challengee.uid, ChallengeStatusUnhandled, ChallengeStatusSent, ChallengeStatusAccepted, ChallengeStatusRequestForfeit)
     if len(challenges) >= 25 {
         addInteractionResponse(s, i, UpdateMsg, "Du kan inte ha mer än 25 utmaningar, ta bort en för att kunna acceptera denna.")
         return
@@ -443,19 +453,19 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    if challengee.seasonPoints < c.points {
+    if challengee.points < c.points {
         msgChallenger = "Motståndandaren har inte tillräckligt med poäng för att acceptera utmaningen.\n"
         msgChallengee = "Du har inte tillräckligt med poäng för att acceptera utmaningen.\n"
         answ = "decline"
     }
 
-    existingChallenge := getChallenge(db, "((challengerUID=? AND challengeeUID=?) OR " +
-                                          "(challengeeUID=? AND challengerUID=?)) " +
-                                          "AND matchID=? AND id!=? " +
-                                          "AND status!=? AND status!=?",
-                                           c.challengerUID, challengee.uid,
-                                           c.challengerUID, challengee.uid,
-                                           c.matchID, c.id,
+    existingChallenge := getChallenge(db, "((challengerid=$1 AND challengeeid=$2) OR " +
+                                          "(challengeeid=$3 AND challengerid=$4)) " +
+                                          "AND matchid=$5 AND id!=$6 " +
+                                          "AND status!=$7 AND status!=$8",
+                                           c.challengerid, challengee.uid,
+                                           c.challengerid, challengee.uid,
+                                           c.matchid, c.id,
                                            ChallengeStatusDeclined, ChallengeStatusForfeited)
     if existingChallenge.id != -1 {
         log.Printf("chall: %v", existingChallenge)
@@ -477,28 +487,28 @@ func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
         status = ChallengeStatusAccepted
         msgChallenger += fmt.Sprintf("Din utmaning har blivit accepterad.\n")
         msgChallenger += fmt.Sprintf("**%v** vs **%v** för **%v** poäng mot **%v**",
-                                     m.homeTeam, m.awayTeam, c.points, challengeeUsername)
+                                     m.hometeam, m.awayteam, c.points, challengeeUsername)
         msgChallengee += fmt.Sprintf("Skickar bekräftelse till utmanaren.")
-        userUID = c.challengeeUID
+        userUID = c.challengeeid
         plusOrMinus = "-"
     } else {
         status = ChallengeStatusDeclined
         msgChallenger += fmt.Sprintf("Din utmaning har blivit nekad.\n")
         msgChallenger += fmt.Sprintf("**%v** vs **%v** för **%v** poäng mot **%v**",
-                                     m.homeTeam, m.awayTeam, c.points, challengeeUsername)
+                                     m.hometeam, m.awayteam, c.points, challengeeUsername)
         msgChallengee += fmt.Sprintf("Du har nekat utmaningen.")
-        userUID = c.challengerUID
+        userUID = c.challengerid
         plusOrMinus = "+"
     }
 
-    _, err := db.Exec("UPDATE users SET seasonPoints=seasonPoints " + plusOrMinus + " ? WHERE uid=?", c.points, userUID)
+    _, err := db.Exec("UPDATE users SET points=points " + plusOrMinus + " $1 WHERE uid=$2", c.points, userUID)
     if err != nil { log.Panic(err) }
 
-    _, err = db.Exec("UPDATE challenges SET status=? WHERE id=?", status, cid)
+    _, err = db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", status, cid)
     if err != nil { log.Panic(err) }
 
     addCompInteractionResponse(s, i, UpdateMsg, msgChallengee, []dg.MessageComponent{})
 
-    dmcid, _ := s.UserChannelCreate(fmt.Sprintf("%v", c.challengerUID))
+    dmcid, _ := s.UserChannelCreate(fmt.Sprintf("%v", c.challengerid))
     s.ChannelMessageSend(dmcid.ID, msgChallenger)
 }

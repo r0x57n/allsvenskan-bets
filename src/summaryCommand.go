@@ -6,8 +6,7 @@ import (
 	"strconv"
 	"log"
 	"time"
-	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
+    _ "github.com/lib/pq"
 	dg "github.com/bwmarrin/discordgo"
 )
 
@@ -15,24 +14,23 @@ import (
 func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
 	if notOwner(s, i) { return }
 
-	db, err := sql.Open(DB_TYPE, DB)
+    db := connectDB()
 	defer db.Close()
-	if err != nil { log.Fatal(err) }
 
 	today := time.Now().Format("2006-01-02")
 
     round := -1
-    err = db.QueryRow("SELECT round FROM matches WHERE date(date)>=? AND finished='0' ORDER BY date", today).Scan(&round)
+    err := db.QueryRow("SELECT round FROM matches WHERE date(date)>=$1 AND finished='0' ORDER BY date", today).Scan(&round)
     if err != nil { log.Panic(err) }
 
     var matches []match
-    matchesRows, err := db.Query("SELECT id, homeTeam, awayTeam, date, scoreHome, scoreAway, finished FROM matches WHERE round=?", round)
+    matchesRows, err := db.Query("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished FROM matches WHERE round=$1", round)
     if err != nil { log.Panic(err) }
 
     won, lost := 0, 0
-    err = db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=? AND won=1 AND handled=1", round).Scan(&lost)
+    err = db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusWon).Scan(&lost)
     if err != nil { log.Panic(err) }
-    err = db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=? AND won=0 AND handled=1", round).Scan(&won)
+    err = db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusLost).Scan(&won)
     if err != nil { log.Panic(err) }
 
     var bets []bet
@@ -40,18 +38,18 @@ func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     for matchesRows.Next() {
         var m match
-        matchesRows.Scan(&m.id, &m.homeTeam, &m.awayTeam, &m.date, &m.scoreHome, &m.scoreAway, &m.finished)
+        matchesRows.Scan(&m.id, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore, &m.finished)
         matches = append(matches, m)
 
-        betsRows, err := db.Query("SELECT id, uid, matchid, homeScore, awayScore, won FROM bets WHERE matchid=?", m.id)
+        betsRows, err := db.Query("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE matchid=$1", m.id)
         if err != nil { log.Panic(err) }
 
         for betsRows.Next() {
             var b bet
-            betsRows.Scan(&b.id, &b.uid, &b.matchid, &b.homeScore, &b.awayScore, &b.won)
+            betsRows.Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status)
             bets = append(bets, b)
 
-            if b.won == 1 {
+            if b.status == BetStatusWon {
                 wins[b.uid]++
             }
         }
