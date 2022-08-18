@@ -9,9 +9,10 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func chickenCommand(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
+    s := b.session
 
     uid := getInteractUID(i)
     challenges := *getChallenges(db, "(challengerid=$1 OR challengeeid=$2) " +

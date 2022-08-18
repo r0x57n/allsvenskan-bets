@@ -5,10 +5,10 @@ import (
 )
 
 // Command: checkbets
-func checkBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
-	if notOwner(s, i) { return }
+func (b *botHolder) checkBetsCommand(i *dg.InteractionCreate) {
+    if b.notOwner(getInteractUID(i)) { return }
 
-    addInteractionResponse(s, i, NewMsg, "Checking bets...")
+    addInteractionResponse(b.session, i, NewMsg, "Checking bets...")
     checkUnhandledBets()
     checkUnhandledChallenges()
 }

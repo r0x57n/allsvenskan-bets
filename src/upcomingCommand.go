@@ -11,7 +11,8 @@ import (
 )
 
 // Command: kommande
-func upcomingCommand(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) upcomingCommand(i *dg.InteractionCreate) {
+    s := b.session
     db := connectDB()
 	defer db.Close()
 

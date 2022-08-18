@@ -9,9 +9,10 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func regretCommand(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
+    s := b.session
 
     uid := getInteractUID(i)
 

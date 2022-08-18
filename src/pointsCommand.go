@@ -10,9 +10,10 @@ import (
 
 
 // Command: poäng
-func pointsCommand(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
     db := connectDB()
 	defer db.Close()
+    s := b.session
 
 	rows, err := db.Query("SELECT uid, points FROM users ORDER BY points DESC LIMIT 10")
 	defer rows.Close()

@@ -37,17 +37,6 @@ func getUserFromInteraction(db *sql.DB, i *dg.InteractionCreate) user {
     return getUser(db, uid)
 }
 
-func notOwner(s *dg.Session, i *dg.InteractionCreate) bool {
-    isntOwner := getInteractUID(i) != *OWNER
-
-	if isntOwner {
-        addInteractionResponse(s, i, NewMsg, "Du har inte rättigheter att köra detta kommando...")
-        return true
-	}
-
-    return false
-}
-
 func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m match) bool {
     matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
 	if err != nil {
@@ -64,13 +53,10 @@ func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m match) bool {
    We take care to let the SQL package prepare the statements, see: https://go.dev/doc/database/sql-injection
 */
 
-func getSqlInfo() string {
-    return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-                        DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME)
-}
-
 func connectDB() *sql.DB {
-    db, err := sql.Open(DB_TYPE, getSqlInfo())
+    dbInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+                        DB.host, DB.port, DB.user, DB.password, DB.name)
+    db, err := sql.Open(DB_TYPE, dbInfo)
     if err != nil {
         log.Fatalf("Couldn't connect to database: %v", err)
     }
@@ -348,7 +334,6 @@ func addEmbeddedInteractionResponse(s *dg.Session,
 
 		},
 	}); err != nil { log.Panic(err) }
-
 }
 
 func addCompInteractionResponse(s *dg.Session,

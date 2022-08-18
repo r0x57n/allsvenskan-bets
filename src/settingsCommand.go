@@ -7,9 +7,10 @@ import (
 )
 
 // Command: inställningar
-func settingsCommand(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
+    s := b.session
 
     uid := getInteractUID(i)
     u := getUser(db, uid)

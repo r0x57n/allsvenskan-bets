@@ -2,22 +2,22 @@ package main
 
 import (
     "sort"
-	"fmt"
-	"strconv"
-	"log"
-	"time"
+    "fmt"
+    "strconv"
+    "log"
+    "time"
     _ "github.com/lib/pq"
-	dg "github.com/bwmarrin/discordgo"
+    dg "github.com/bwmarrin/discordgo"
 )
 
 // Command: sammanfatta
-func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
-	if notOwner(s, i) { return }
+func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
+    if b.notOwner(getInteractUID(i)) { return }
 
     db := connectDB()
-	defer db.Close()
+    defer db.Close()
 
-	today := time.Now().Format("2006-01-02")
+    today := time.Now().Format("2006-01-02")
 
     round := -1
     err := db.QueryRow("SELECT round FROM matches WHERE date(date)>=$1 AND finished='0' ORDER BY date", today).Scan(&round)
@@ -66,7 +66,7 @@ func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
 
     for i, k := range keys {
         if i <= 3 {
-            username, _ := s.User(strconv.Itoa(k))
+            username, _ := b.session.User(strconv.Itoa(k))
             topThree += fmt.Sprintf("#%v - %v med %v vinster\n", i + 1, username.Username, wins[k])
         }
     }
@@ -75,5 +75,5 @@ func summaryCommand(s *dg.Session, i *dg.InteractionCreate) {
     msg += fmt.Sprintf("**%v**:st vann sina vad medans **%v**:st förlorade.\n\n", won, lost)
     msg += topThree
 
-    addInteractionResponse(s, i, NewMsg, msg)
+    addInteractionResponse(b.session, i, NewMsg, msg)
 }

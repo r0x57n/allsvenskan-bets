@@ -11,13 +11,13 @@ import (
 )
 
 // Command: slåvad
-func betCommand(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) betCommand(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
     options := *getCurrentMatchesAsOptions(db)
     if len(options) == 0 {
-        addInteractionResponse(s, i, NewMsg, "Inga matcher tillgängliga! :(")
+        addInteractionResponse(b.session, i, NewMsg, "Inga matcher tillgängliga! :(")
         return
     }
 
@@ -53,18 +53,18 @@ func betCommand(s *dg.Session, i *dg.InteractionCreate) {
         },
     }
 
-    addCompInteractionResponse(s, i, NewMsg, "Kommande omgångens matcher.", components)
+    addCompInteractionResponse(b.session, i, NewMsg, "Kommande omgångens matcher.", components)
 }
 
 func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
-	defer db.Close()
+    defer db.Close()
 
     values := getValuesOrRespond(s, i, UpdateMsg)
     if values == nil { return }
 
-	mid := values[0]
-	uid := getInteractUID(i)
+    mid := values[0]
+    uid := getInteractUID(i)
 
     earlierBetScore := [2]int {-1, -1}
     earlierBet := getBet(db, "uid=$1 AND matchid=$2", uid, mid)
@@ -79,7 +79,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
     }
 
     datetime, err := time.Parse(DB_TIME_LAYOUT, m.date)
-	if err != nil {
+    if err != nil {
         addErrorResponse(s, i, NewMsg, "Couldn't translate match date from database...")
         return
     }

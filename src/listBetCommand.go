@@ -9,9 +9,10 @@ import (
 )
 
 // Command: vadslagningar
-func listBetsCommand(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
+    s := b.session
 
     // Get options and parse
     options := getOptionsOrRespond(s, i, NewMsg)

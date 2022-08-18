@@ -1,230 +1,30 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"time"
 	"os"
 	"os/signal"
 	"github.com/robfig/cron/v3"
-	dg "github.com/bwmarrin/discordgo"
     "github.com/gookit/config/v2"
     "github.com/gookit/config/v2/yaml"
 )
 
-
 /*
- Paths
+  Globals
 */
 
 const (
-	DB_TYPE = "postgres"
-	DB_TIME_LAYOUT = time.RFC3339
-    MSG_TIME_LAYOUT = "2006-01-02 kl. 15:04"
-    VERSION = "0.7.0" // major.minor.patch
-    CHECK_BETS_INTERVAL = "30m"
-    CHECK_CHALL_INTERVAL = "30m"
+    VERSION                 = "0.8.0" // major.minor.patch
+	DB_TYPE                 = "postgres"
+	DB_TIME_LAYOUT          = time.RFC3339
+    MSG_TIME_LAYOUT         = "2006-01-02 kl. 15:04"
+    CONFIG_PATH             = "../config.yml"
+    CHECK_BETS_INTERVAL     = "30m"
+    CHECK_CHALL_INTERVAL    = "30m"
 )
 
-
-/*
- Bot parameters
-*/
-
-var (
-	GUILD_ID    = flag.String("guild", "", "Test guild ID")
-	BOT_TOKEN   = flag.String("token", "", "Bot access token")
-	APP_ID      = flag.String("app", "", "Application ID")
-    OWNER       = flag.String("owner", "", "Owner of the bot")
-    DELETE      = flag.Bool("delete", false, "Remove all commands")
-    UPDATE      = flag.Bool("update", false, "Update/add all commands")
-    DB_HOST     = ""
-    DB_PORT     = 5432
-    DB_USER     = ""
-    DB_PASSWORD = ""
-    DB_NAME     = ""
-)
-
-
-/*
-  Structs
-*/
-
-type cmd struct {
-    name string
-    description string
-    category CommandCategory
-    admin bool
-    options []*dg.ApplicationCommandOption
-}
-
-type match struct {
-	id int
-	hometeam string
-	awayteam string
-	date string
-	homescore int
-	awayscore int
-    round int
-	finished bool
-}
-
-type bet struct {
-	id int
-	uid int
-	matchid int
-	homescore int
-	awayscore int
-    status BetStatus
-}
-
-type challenge struct {
-    id int
-    challengerid int
-    challengeeid int
-    typ ChallengeType
-    matchid int
-    points int
-    condition ChallengeCondition
-    status ChallengeStatus
-}
-
-type user struct {
-    uid int
-    points int
-    bank string
-    viewable bool
-    interactable bool
-}
-
-
-/*
-  Enums
-*/
-
-type CommandCategory string
-const (
-    CommandCategoryGeneral = "Allmänt"
-    CommandCategoryBetting = "Slå vad"
-    CommandCategoryListing = "Vadslagningar"
-    CommandCategoryAdmin = "Admin"
-)
-
-type BetStatus int
-const (
-    BetStatusUnhandled = iota
-    BetStatusWon
-    BetStatusLost
-)
-
-type ChallengeStatus int
-const (
-    ChallengeStatusUnhandled = iota
-    ChallengeStatusSent
-    ChallengeStatusAccepted
-    ChallengeStatusDeclined
-    ChallengeStatusRequestForfeit
-    ChallengeStatusForfeited
-    ChallengeStatusHandled
-)
-
-type ChallengeType int
-const (
-    ChallengeTypeWinner = iota
-)
-
-type ChallengeCondition int
-const (
-    ChallengeConditionWinnerHome = iota
-    ChallengeConditionWinnerAway
-)
-
-type BetType int
-const (
-    Lost = iota
-    Won
-    All
-)
-
-type BetLocation int
-const (
-	Home = iota
-	Away
-)
-
-type InteractionType dg.InteractionResponseType
-const (
-	NewMsg = dg.InteractionResponseChannelMessageWithSource
-	UpdateMsg = dg.InteractionResponseUpdateMessage
-    Ignore = dg.InteractionResponseDeferredMessageUpdate
-)
-
-
-/*
-  Initialization
-*/
-
-func initializeBot() *dg.Session {
-	log.Print("Initializing...")
-
-	// Login bot
-	s, err := dg.New("Bot " + *BOT_TOKEN)
-	if err != nil {
-		log.Fatalf("Invalid bot parameters: %v", err)
-	}
-
-    // Add command/component handlers
-	s.AddHandler(func(s *dg.Session, i *dg.InteractionCreate) {
-		switch i.Type {
-			case dg.InteractionApplicationCommand:
-				if h, ok := COMMAND_HANDLERS[i.ApplicationCommandData().Name]; ok { h(s, i) }
-			case dg.InteractionMessageComponent:
-				if h, ok := COMPONENT_HANDLERS[i.MessageComponentData().CustomID]; ok { h(s, i) }
-		}
-	})
-
-    // Tell us when we manage to login
-	s.AddHandler(func(s *dg.Session, r *dg.Ready) {
-		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
-	})
-
-    // Delete commands
-    if *DELETE {
-        cmds, _ := s.ApplicationCommands(*APP_ID, *GUILD_ID)
-
-        for _, cmd := range cmds {
-            log.Printf("Deleting: %v", cmd.Name)
-            s.ApplicationCommandDelete(*APP_ID, *GUILD_ID, cmd.ID)
-        }
-    }
-
-    // Update/add commands
-    if *UPDATE {
-        for _, c := range COMMANDS {
-            cmd := dg.ApplicationCommand {
-                Name: c.name,
-                Description: c.description,
-                Options: c.options,
-            }
-
-            log.Printf("Adding: %v", cmd.Name)
-
-            _, err := s.ApplicationCommandCreate(*APP_ID, *GUILD_ID, &cmd)
-            if err != nil {
-                log.Fatalf("Cannot create slash command %q, %v", cmd.Name, err)
-            }
-        }
-    }
-
-	// Start bot
-	err = s.Open()
-	if err != nil {
-		log.Fatalf("Cannot open the session: %v", err)
-	}
-
-	return s
-}
-
+var DB database
 
 /*
  Main
@@ -233,33 +33,28 @@ func initializeBot() *dg.Session {
 func main() {
 	log.Print("Starting...")
 
+    bot := &botHolder{}
+
+    // Load config
     config.WithOptions(config.ParseEnv)
     config.AddDriver(yaml.Driver)
-    err := config.LoadFiles("config.yml")
-	if err != nil { panic(err) }
+    if err := config.LoadFiles(CONFIG_PATH); err != nil { panic(err) }
 
-    flag.Parse()
-    if *BOT_TOKEN == "" {
-        *BOT_TOKEN = config.String("botToken")
-    }
-
-    if *APP_ID == "" {
-        *APP_ID = config.String("appID")
-    }
-
-    if *OWNER == "" {
-        *OWNER = config.String("owner")
-    }
-
-    DB_HOST     = config.String("dbHost")
-    DB_USER     = config.String("dbName")
-    DB_PASSWORD = config.String("dbPass")
-    DB_NAME     = config.String("dbName")
+    bot.token   = config.String("botToken")
+    bot.appID   = config.String("botToken")
+    bot.owner   = config.String("owner")
+    DB.host     = config.String("dbHost")
+    DB.user     = config.String("dbName")
+    DB.password = config.String("dbPass")
+    DB.name     = config.String("dbName")
+    DB.port     = config.Int("dbPort")
 
 	// Initialize and start the bot
-	s := initializeBot()
-	defer s.Close()
+	bot.Init()
+    bot.Start()
+	defer bot.Close()
 
+    // Interval checking stuff
     c := cron.New()
     if CHECK_BETS_INTERVAL != "" {
         c.AddFunc("@every " + CHECK_BETS_INTERVAL, checkUnhandledBets)
@@ -271,7 +66,7 @@ func main() {
     }
     c.Start()
 
-	// Wait for stop signal
+	// Stop signal to quit
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 	<-stop

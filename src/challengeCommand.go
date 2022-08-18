@@ -31,9 +31,10 @@ import (
     _ "github.com/lib/pq"
 )
 
-func challengeCommand(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) challengeCommand(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
+    s := b.session
 
     msgOptions := getOptionsOrRespond(s, i, NewMsg)
     if msgOptions == nil { return }
