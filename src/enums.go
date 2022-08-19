@@ -4,13 +4,6 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-type BetStatus int
-const (
-    BetStatusUnhandled = iota
-    BetStatusWon
-    BetStatusLost
-)
-
 type ChallengeStatus int
 const (
     ChallengeStatusUnhandled = iota
@@ -33,6 +26,13 @@ const (
     ChallengeConditionWinnerAway
 )
 
+type BetStatus int
+const (
+    BetStatusUnhandled = iota
+    BetStatusWon
+    BetStatusLost
+)
+
 type BetType int
 const (
     Lost = iota
@@ -42,14 +42,14 @@ const (
 
 type BetLocation int
 const (
-	Home = iota
-	Away
+    Home = iota
+    Away
 )
 
 type InteractionType dg.InteractionResponseType
 const (
-	NewMsg = dg.InteractionResponseChannelMessageWithSource
-	UpdateMsg = dg.InteractionResponseUpdateMessage
+    NewMsg = dg.InteractionResponseChannelMessageWithSource
+    UpdateMsg = dg.InteractionResponseUpdateMessage
     Ignore = dg.InteractionResponseDeferredMessageUpdate
 )
 
@@ -85,9 +85,9 @@ const (
 
 type ComponentName string
 const (
-    BetOnSelected = "betOnSelected"
-    BetScoreHome = "betScoreHome"
-    BetScoreAway = "betScoreAway"
+    BetSelectScore = "betOnSelected"
+    BetUpdateScoreHome = "betScoreHome"
+    BetUpdateScoreAway = "betScoreAway"
     ChallSelectWinner = "challSelectWinner"
     ChallSelectPoints = "challSelectPoints"
     ChallAcceptDiscard = "challAcceptDiscard"

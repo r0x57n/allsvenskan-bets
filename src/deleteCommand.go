@@ -36,12 +36,12 @@ func (b *botHolder) deleteCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, dg.InteractionResponseChannelMessageWithSource, "Välj kommando att radera:", components)
 }
 
-func (b *botHolder) deleteCommandDo(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) deleteCommandDo(i *dg.InteractionCreate) {
     if b.notOwner(getInteractUID(i)) { return }
 
     val := i.MessageComponentData().Values[0]
 
-    s.ApplicationCommandDelete(b.appID, b.guildID, val)
-    addInteractionResponse(s, i, NewMsg, fmt.Sprintf("Deleted: %v", val))
+    b.session.ApplicationCommandDelete(b.appID, b.guildID, val)
+    addInteractionResponse(b.session, i, NewMsg, fmt.Sprintf("Deleted: %v", val))
     log.Printf("Deleted: %v", val)
 }

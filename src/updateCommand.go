@@ -41,7 +41,7 @@ func (b *botHolder) updateCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, dg.InteractionResponseChannelMessageWithSource, "Välj kommando att uppdatera:", components)
 }
 
-func (b *botHolder) updateCommandDo(s *dg.Session, i *dg.InteractionCreate) {
+func (b *botHolder) updateCommandDo(i *dg.InteractionCreate) {
     if b.notOwner(getInteractUID(i)) { return }
 
     components := []dg.MessageComponent {}

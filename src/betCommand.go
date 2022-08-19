@@ -25,15 +25,16 @@ func (b *botHolder) betCommand(i *dg.InteractionCreate) {
     if err != nil { log.Panic(err) }
 
     for betsRows.Next() {
-        var b bet
-        betsRows.Scan(&b.matchid, &b.homescore, &b.awayscore)
-        matchidToBet[strconv.Itoa(b.matchid)] = b
+        var bet bet
+        betsRows.Scan(&bet.matchid, &bet.homescore, &bet.awayscore)
+        matchidToBet[strconv.Itoa(bet.matchid)] = bet
     }
 
     if len(matchidToBet) > 0 {
         for i, option := range options {
-            b := matchidToBet[option.Value]
-            options[i].Label += fmt.Sprintf(" [%v-%v]", b.homescore, b.awayscore)
+            if bet, ok := matchidToBet[option.Value]; ok {
+                options[i].Label += fmt.Sprintf(" [%v-%v]", bet.homescore, bet.awayscore)
+            }
         }
     }
 
@@ -42,7 +43,7 @@ func (b *botHolder) betCommand(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj en match",
-                    CustomID: BetOnSelected, // component handler
+                    CustomID: BetSelectScore, // component handler
                     Options: options,
                 },
             },
@@ -52,7 +53,7 @@ func (b *botHolder) betCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, NewMsg, "Kommande omgångens matcher.", components)
 }
 
-func (b *botHolder) betOnSelected(i *dg.InteractionCreate) {
+func (b *botHolder) betSelectScore(i *dg.InteractionCreate) {
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
 
@@ -85,24 +86,24 @@ func (b *botHolder) betOnSelected(i *dg.InteractionCreate) {
     msg := fmt.Sprintf("Hemmalag: %v\n", m.hometeam)
     msg += fmt.Sprintf("Bortalag: %v\n\n", m.awayteam)
     msg += fmt.Sprintf("Spelas: %v, klockan %v\n\n", datetime.Format("2006-01-02"), datetime.Format("15:04"))
-    msg += fmt.Sprintf("**Poäng** *(hemmalag överst)*")
+    msg += fmt.Sprintf("**Mål**")
 
     components := []dg.MessageComponent {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: BetScoreHome,
+                    CustomID: BetUpdateScoreHome,
                     Placeholder: "Hemmalag",
-                    Options: *getScoresAsOptions(m.id, earlierBetScore[0]),
+                    Options: *getScoresAsOptions(m.id, earlierBetScore[0], m.hometeam),
                 },
             },
         },
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: BetScoreAway,
+                    CustomID: BetUpdateScoreAway,
                     Placeholder: "Bortalag",
-                    Options: *getScoresAsOptions(m.id, earlierBetScore[1]),
+                    Options: *getScoresAsOptions(m.id, earlierBetScore[1], m.awayteam),
                 },
             },
         },
@@ -111,7 +112,7 @@ func (b *botHolder) betOnSelected(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, UpdateMsg, msg, components)
 }
 
-func (b *botHolder) betScoreComponent(i *dg.InteractionCreate, where BetLocation) {
+func (b *botHolder) betUpdateScore(i *dg.InteractionCreate, where BetLocation) {
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
 
@@ -156,7 +157,7 @@ func (b *botHolder) betScoreComponent(i *dg.InteractionCreate, where BetLocation
         _, err = b.db.Exec("UPDATE bets SET " + awayOrHome + "score=$1 WHERE uid=$2 AND matchid=$3", score, uid, mid)
         if err != nil { log.Panic(err) }
     } else {
-        _, err = b.db.Exec("INSERT INTO bets (uid, matchid, homescore, awayscore) VALUES ($1, $2, $3, $4)", uid, mid, homescore, awayscore)
+        _, err = b.db.Exec("INSERT INTO bets (uid, matchid, homescore, awayscore, round) VALUES ($1, $2, $3, $4, $5)", uid, mid, homescore, awayscore, m.round)
         if err != nil { log.Panic(err) }
     }
 

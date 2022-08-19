@@ -1,18 +1,18 @@
 package main
 
 import (
-	"log"
-	dg "github.com/bwmarrin/discordgo"
+    "log"
+    dg "github.com/bwmarrin/discordgo"
 )
 
 func (b *botHolder) Init() {
-	log.Print("Initializing...")
+    log.Print("Initializing...")
 
-	// Login bot to get the active session
-	s, err := dg.New("Bot " + b.token)
-	if err != nil {
-		log.Fatalf("Invalid bot parameters: %v", err)
-	}
+    // Login bot to get the active session
+    s, err := dg.New("Bot " + b.token)
+    if err != nil {
+        log.Fatalf("Invalid bot parameters: %v", err)
+    }
 
     b.session = s
 
@@ -31,9 +31,9 @@ func (b *botHolder) Init() {
         PointsCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.pointsCommand(i)      },
         SettingsCommand:    func(s *dg.Session, i *dg.InteractionCreate) {    b.settingsCommand(i)    },
         InfoCommand:        func(s *dg.Session, i *dg.InteractionCreate) {    b.infoCommand(i)        },
+        SummaryCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.summaryCommand(i)     },
 
         // Admin commands
-        SummaryCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.summaryCommand(i)     },
         UpdateCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.updateCommand(i)      },
         DeleteCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.deleteCommand(i)      },
         CheckCommand:       func(s *dg.Session, i *dg.InteractionCreate) {    b.checkBetsCommand(i)   },
@@ -41,9 +41,9 @@ func (b *botHolder) Init() {
 
     // Component handlers
     b.componentHandlers = map[string]func(s *dg.Session, i *dg.InteractionCreate) {
-        BetOnSelected:        func(s *dg.Session, i *dg.InteractionCreate) {   b.betOnSelected(i)              },
-        BetScoreHome:         func(s *dg.Session, i *dg.InteractionCreate) {   b.betScoreComponent(i, Home)    },
-        BetScoreAway:         func(s *dg.Session, i *dg.InteractionCreate) {   b.betScoreComponent(i, Away)    },
+        BetSelectScore:       func(s *dg.Session, i *dg.InteractionCreate) {   b.betSelectScore(i)             },
+        BetUpdateScoreHome:   func(s *dg.Session, i *dg.InteractionCreate) {   b.betUpdateScore(i, Home)       },
+        BetUpdateScoreAway:   func(s *dg.Session, i *dg.InteractionCreate) {   b.betUpdateScore(i, Away)       },
         ChallSelectWinner:    func(s *dg.Session, i *dg.InteractionCreate) {   b.challSelectWinner(i)          },
         ChallSelectPoints:    func(s *dg.Session, i *dg.InteractionCreate) {   b.challSelectPoints(i)          },
         ChallAcceptDiscard:   func(s *dg.Session, i *dg.InteractionCreate) {   b.challAcceptDiscard(i)         },
@@ -51,33 +51,33 @@ func (b *botHolder) Init() {
         ChallAnswer:          func(s *dg.Session, i *dg.InteractionCreate) {   b.challAnswer(i)                },
         SettingsVisibility:   func(s *dg.Session, i *dg.InteractionCreate) {   b.settingsVisibility(i)         },
         SettingsChall:        func(s *dg.Session, i *dg.InteractionCreate) {   b.settingsChall(i)              },
-        UpdateCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.updateCommandDo(s, i)          },
-        DeleteCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.deleteCommandDo(s, i)          },
+        UpdateCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.updateCommandDo(i)            },
+        DeleteCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.deleteCommandDo(i)            },
         RegretSelected:       func(s *dg.Session, i *dg.InteractionCreate) {   b.regretSelected(i)             },
         ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenSelected(i)            },
         ChickenAnswer:        func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenAnswer(i)              },
     }
 
-	s.AddHandler(func(s *dg.Session, i *dg.InteractionCreate) {
-		switch i.Type {
-			case dg.InteractionApplicationCommand:
+    s.AddHandler(func(s *dg.Session, i *dg.InteractionCreate) {
+        switch i.Type {
+            case dg.InteractionApplicationCommand:
                 if h, ok := b.commandHandlers[i.ApplicationCommandData().Name]; ok { h(s, i) }
-			case dg.InteractionMessageComponent:
-				if h, ok := b.componentHandlers[i.MessageComponentData().CustomID]; ok { h(s, i) }
-		}
-	})
+            case dg.InteractionMessageComponent:
+                if h, ok := b.componentHandlers[i.MessageComponentData().CustomID]; ok { h(s, i) }
+        }
+    })
 
     // Handler to tell us when we logged in
-	s.AddHandler(func(s *dg.Session, r *dg.Ready) {
-		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
-	})
+    s.AddHandler(func(s *dg.Session, r *dg.Ready) {
+        log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+    })
 }
 
 func (b *botHolder) Start() {
-	err := b.session.Open()
-	if err != nil {
-		log.Panicf("Cannot open the session: %v", err)
-	}
+    err := b.session.Open()
+    if err != nil {
+        log.Panicf("Cannot open the session: %v", err)
+    }
 }
 
 func (b *botHolder) Close() {
@@ -159,11 +159,11 @@ func (b *botHolder) addCommands() {
                     Description: "Vill du enbart visa en viss typ av vad?",
                     Choices: []*dg.ApplicationCommandOptionChoice {
                         {
-                            Name: "vunna",
+                            Name: "Korrekta",
                             Value: "1",
                         },
                         {
-                            Name: "förlorade",
+                            Name: "Inkorrekta",
                             Value: "0",
                         },
                     },
@@ -176,6 +176,19 @@ func (b *botHolder) addCommands() {
             category: CommandCategoryListing,
         },
         {
+            name: SummaryCommand,
+            description: "Sammanfatta denna omgång till #bets.",
+            category: CommandCategoryListing,
+            options: []*dg.ApplicationCommandOption {
+                {
+                    Type: dg.ApplicationCommandOptionInteger,
+                    Name: "omgång",
+                    Description: "Vilken omgång att sammanfatta",
+                    Required: true,
+                },
+            },
+        },
+        {
             name: SettingsCommand,
             description: "Inställningar för din användare.",
             category: CommandCategoryGeneral,
@@ -184,12 +197,6 @@ func (b *botHolder) addCommands() {
             name: InfoCommand,
             description: "Teknisk info om botten.",
             category: CommandCategoryGeneral,
-        },
-        {
-            name: SummaryCommand,
-            description: "Sammanfatta denna omgång till #bets.",
-            category: CommandCategoryAdmin,
-            admin: true,
         },
         {
             name: UpdateCommand,

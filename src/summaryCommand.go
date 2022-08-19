@@ -1,75 +1,98 @@
 package main
 
 import (
-    "sort"
     "fmt"
-    "strconv"
     "log"
-    "time"
+    "strconv"
     _ "github.com/lib/pq"
     dg "github.com/bwmarrin/discordgo"
 )
 
 func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
-    if b.notOwner(getInteractUID(i)) { return }
+    round := getCurrentRound(b.db) - 1
+    matches := *getMatches(b.db, "round=$1", round)
 
-    today := time.Now().Format("2006-01-02")
+    var (
+        totalWon = 0
+        totalLost = 0
+    )
 
-    round := -1
-    err := b.db.QueryRow("SELECT round FROM matches WHERE date(date)>=$1 AND finished='0' ORDER BY date", today).Scan(&round)
-    if err != nil { log.Panic(err) }
+    var allBets []bet
+    userWins := make(map[string]int)
+    userLost := make(map[string]int)
 
-    var matches []match
-    matchesRows, err := b.db.Query("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished FROM matches WHERE round=$1", round)
-    if err != nil { log.Panic(err) }
+    // Fetch info for all played matches
+    for _, m := range matches {
+        matchBets := *getBets(b.db, "matchid=$1", m.id)
 
-    won, lost := 0, 0
-    err = b.db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusWon).Scan(&lost)
-    if err != nil { log.Panic(err) }
-    err = b.db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusLost).Scan(&won)
-    if err != nil { log.Panic(err) }
+        for _, bet := range matchBets {
+            allBets = append(allBets, bet)
 
-    var bets []bet
-    wins := make(map[int]int)
+            if bet.status == BetStatusWon {
+                totalWon++
 
-    for matchesRows.Next() {
-        var m match
-        matchesRows.Scan(&m.id, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore, &m.finished)
-        matches = append(matches, m)
+                user, _ := b.session.User(strconv.Itoa(bet.uid))
+                userWins[user.Username]++
+            } else if bet.status == BetStatusLost {
+                totalLost++
 
-        betsRows, err := b.db.Query("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE matchid=$1", m.id)
-        if err != nil { log.Panic(err) }
-
-        for betsRows.Next() {
-            var b bet
-            betsRows.Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status)
-            bets = append(bets, b)
-
-            if b.status == BetStatusWon {
-                wins[b.uid]++
+                user, _ := b.session.User(strconv.Itoa(bet.uid))
+                userLost[user.Username]++
             }
         }
     }
 
-    // Top three wins
-    topThree := "Dom med flest vinster är:\n"
-    keys := make([]int, 0, len(wins))
-    for k := range wins {
-        keys = append(keys, k)
+    rows, err := b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 10", round, BetStatusWon)
+    if err != nil { log.Panic(err) }
+
+    topFive := ""
+    placement := 1
+    for rows.Next() {
+        uid, count := 0, 0
+        rows.Scan(&uid, &count)
+        user, _ := b.session.User(strconv.Itoa(uid))
+        topFive += fmt.Sprintf("#%v - %v med **%v** vinster\n", placement, user.Username, count)
+        placement++
     }
 
-    sort.Ints(keys)
-
-    for i, k := range keys {
-        if i <= 3 {
-            username, _ := b.session.User(strconv.Itoa(k))
-            topThree += fmt.Sprintf("#%v - %v med %v vinster\n", i + 1, username.Username, wins[k])
-        }
+    if topFive == "" {
+        topFive = "Ingen vann något denna omgång."
     }
 
-    msg := fmt.Sprintf("Denna omgång spelades **%v** matcher och **%v** vadslagningar las.\n\n", len(matches), len(bets))
-    msg += fmt.Sprintf("**%v**:st vann sina vad medans **%v**:st förlorade.\n\n", won, lost)
-    msg += topThree
+    // Bottom 5 list
+    rows, err = b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 10", round, BetStatusLost)
+    if err != nil { log.Panic(err) }
 
-    addInteractionResponse(b.session, i, NewMsg, msg)
+    bottomFive := ""
+    placement = 1
+    for rows.Next() {
+        uid, count := 0, 0
+        rows.Scan(&uid, &count)
+        user, _ := b.session.User(strconv.Itoa(uid))
+        bottomFive += fmt.Sprintf("#%v - %v med **%v** förluster\n", placement, user.Username, count)
+        placement++
+    }
+
+    if bottomFive == "" {
+        bottomFive = "Ingen förlorade något denna omgång."
+    }
+
+    // Add it all together
+    title := fmt.Sprintf("Sammanfattning av omgång %v", round)
+    msg := fmt.Sprintf("**%v** matcher spelades och **%v** vadslagningar (v: %v, f: %v) las. ", len(matches), len(allBets), totalWon, totalLost)
+
+    fields := []*dg.MessageEmbedField {
+        {
+            Name: "Topp 5",
+            Value: topFive,
+            Inline: false,
+        },
+        {
+            Name: "Bott 5",
+            Value: bottomFive,
+            Inline: false,
+        },
+    }
+
+    addEmbeddedInteractionResponse(b.session, i, NewMsg, fields, title, msg)
 }

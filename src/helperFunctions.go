@@ -275,14 +275,14 @@ func getPointsAsOptions(values string, maxPoints int) *[]dg.SelectMenuOption {
 }
 
 
-func getScoresAsOptions(matchid int, defScore int) *[]dg.SelectMenuOption {
+func getScoresAsOptions(matchid int, defScore int, teamName string) *[]dg.SelectMenuOption {
 	options := []dg.SelectMenuOption {}
 
 	for i := 0; i < 25; i++ {
         isChosenScore := defScore == i
 
         options = append(options, dg.SelectMenuOption{
-            Label: strconv.Itoa(i),
+            Label: fmt.Sprintf("%v - %v", i, teamName),
             Value: fmt.Sprintf("%v_%v", matchid, i),
             Default: isChosenScore,
         })

@@ -34,11 +34,11 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     where := ""
     switch listTypes {
         case Lost:
-            where = "uid=$1 AND status=1"
+            where = fmt.Sprintf("uid=%v AND status=%v", uid, BetStatusWon)
         case Won:
-            where = "uid=$1 AND status=1"
+            where = fmt.Sprintf("uid=%v AND status=%v", uid, BetStatusLost)
         case All:
-            where = "uid=$1 AND status=1"
+            where = fmt.Sprintf("uid=%v AND (status=%v OR status=%v)", uid, BetStatusWon, BetStatusLost)
         default:
             addErrorResponse(b.session, i, NewMsg, "Got unidentifiable listTypes in listBetsCommand.")
             return
@@ -47,7 +47,7 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     rows, err := b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam " +
                             "FROM bets AS b " +
                             "JOIN matches AS m ON b.matchid=m.id " +
-                            "WHERE " + where, uid)
+                            "WHERE " + where)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 
