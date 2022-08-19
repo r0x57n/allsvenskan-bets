@@ -151,9 +151,6 @@ func (b *botHolder) challSelectWinner(i *dg.InteractionCreate) {
 }
 
 func (b *botHolder) challSelectPoints(i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
 
@@ -164,8 +161,8 @@ func (b *botHolder) challSelectPoints(i *dg.InteractionCreate) {
     interactionUID := getInteractUID(i)
 
     var (
-        challengerPoints = getUser(db, interactionUID).points
-        challengeePoints = getUser(db, challengee.ID).points
+        challengerPoints = getUser(b.db, interactionUID).points
+        challengeePoints = getUser(b.db, challengee.ID).points
         maxPoints = -1
     )
 

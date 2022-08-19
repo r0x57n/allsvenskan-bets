@@ -13,23 +13,20 @@ import (
 func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
     if b.notOwner(getInteractUID(i)) { return }
 
-    db := connectDB()
-    defer db.Close()
-
     today := time.Now().Format("2006-01-02")
 
     round := -1
-    err := db.QueryRow("SELECT round FROM matches WHERE date(date)>=$1 AND finished='0' ORDER BY date", today).Scan(&round)
+    err := b.db.QueryRow("SELECT round FROM matches WHERE date(date)>=$1 AND finished='0' ORDER BY date", today).Scan(&round)
     if err != nil { log.Panic(err) }
 
     var matches []match
-    matchesRows, err := db.Query("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished FROM matches WHERE round=$1", round)
+    matchesRows, err := b.db.Query("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished FROM matches WHERE round=$1", round)
     if err != nil { log.Panic(err) }
 
     won, lost := 0, 0
-    err = db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusWon).Scan(&lost)
+    err = b.db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusWon).Scan(&lost)
     if err != nil { log.Panic(err) }
-    err = db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusLost).Scan(&won)
+    err = b.db.QueryRow("SELECT COUNT(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusLost).Scan(&won)
     if err != nil { log.Panic(err) }
 
     var bets []bet
@@ -40,7 +37,7 @@ func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
         matchesRows.Scan(&m.id, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore, &m.finished)
         matches = append(matches, m)
 
-        betsRows, err := db.Query("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE matchid=$1", m.id)
+        betsRows, err := b.db.Query("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE matchid=$1", m.id)
         if err != nil { log.Panic(err) }
 
         for betsRows.Next() {

@@ -7,19 +7,16 @@ import (
     _ "github.com/lib/pq"
 )
 
-func checkUnhandledBets() {
-    db := connectDB()
-	defer db.Close()
-
+func (b *botHolder) checkUnhandledBets() {
 	today := time.Now().Format("2006-01-02")
 
 	log.Printf("Checking unhandled bets...")
 
     // Fetch all unhandled bets for matches in the past
-    rows, err := db.Query("SELECT b.id, b.uid, b.matchid, b.homescore, b.awayscore, b.status, m.homescore, m.awayscore " +
-                          "FROM bets AS b " +
-                          "JOIN matches AS m ON m.id=b.matchid " +
-                          "WHERE date(m.date)<=$1 AND b.status=$2", today, BetStatusUnhandled)
+    rows, err := b.db.Query("SELECT b.id, b.uid, b.matchid, b.homescore, b.awayscore, b.status, m.homescore, m.awayscore " +
+                            "FROM bets AS b " +
+                            "JOIN matches AS m ON m.id=b.matchid " +
+                            "WHERE date(m.date)<=$1 AND b.status=$2", today, BetStatusUnhandled)
     defer rows.Close()
 	if err != nil { log.Panic(err) }
 
@@ -44,9 +41,9 @@ func checkUnhandledBets() {
 		// Handle bets for each match individually
 		for _, bam := range bets {
             if bam.m.homescore == bam.b.homescore && bam.m.awayscore == bam.b.awayscore {
-                addPoints(bam.b, 1, BetStatusWon)
+                b.addPoints(bam.b, 1, BetStatusWon)
             } else {
-                addPoints(bam.b, 0, BetStatusLost)
+                b.addPoints(bam.b, 0, BetStatusLost)
             }
 
 		}
@@ -55,19 +52,16 @@ func checkUnhandledBets() {
 	}
 }
 
-func checkUnhandledChallenges() {
-    db := connectDB()
-	defer db.Close()
-
+func (b *botHolder) checkUnhandledChallenges() {
 	today := time.Now().Format("2006-01-02")
 
 	log.Printf("Checking unhandled challenges...")
 
     // Fetch all unhandled bets for matches in the past
-    rows, err := db.Query("SELECT c.id, c.challengerid, c.challengeeid, c.type, c.matchid, c.points, c.condition, c.status " +
-                          "FROM challenges AS c " +
-                          "JOIN matches AS m ON m.id=c.matchid " +
-                          "WHERE date(m.date)<=$1 AND c.status=$2", today, ChallengeStatusAccepted)
+    rows, err := b.db.Query("SELECT c.id, c.challengerid, c.challengeeid, c.type, c.matchid, c.points, c.condition, c.status " +
+                            "FROM challenges AS c " +
+                            "JOIN matches AS m ON m.id=c.matchid " +
+                            "WHERE date(m.date)<=$1 AND c.status=$2", today, ChallengeStatusAccepted)
     defer rows.Close()
 	if err != nil { log.Panic(err) }
 
@@ -111,7 +105,7 @@ func checkUnhandledChallenges() {
                     }
                 }
 
-                addPointsChallenge(winnerUID, cam.c)
+                b.addPointsChallenge(winnerUID, cam.c)
             }
 		}
 
@@ -119,46 +113,40 @@ func checkUnhandledChallenges() {
 	}
 }
 
-func addPoints(b bet, points int, status BetStatus) {
-    db := connectDB()
-	defer db.Close()
+func (b *botHolder) addPoints(bet bet, points int, status BetStatus) {
+    log.Printf("Awarding %v point to %v", points, bet.uid)
 
-    log.Printf("Awarding %v point to %v", points, b.uid)
-
-	row := db.QueryRow("SELECT points FROM users WHERE uid=$1", b.uid)
+	row := b.db.QueryRow("SELECT points FROM users WHERE uid=$1", bet.uid)
 
 	var currPoints int
 	if err := row.Scan(&currPoints); err != nil {
 		if err == sql.ErrNoRows {
-			if _, err := db.Exec("INSERT INTO users (uid, points) VALUES ($1, $2)", b.uid, points); err != nil { log.Panic(err) }
+			if _, err := b.db.Exec("INSERT INTO users (uid, points) VALUES ($1, $2)", bet.uid, points); err != nil { log.Panic(err) }
 		} else {
 			log.Panic(err)
 		}
 	} else {
-		if _, err := db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", points, b.uid); err != nil { log.Panic(err) }
+		if _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", points, bet.uid); err != nil { log.Panic(err) }
 	}
 
-	if _, err := db.Exec("UPDATE bets SET status=$1 WHERE id=$2", status, b.id); err != nil { log.Panic(err) }
+	if _, err := b.db.Exec("UPDATE bets SET status=$1 WHERE id=$2", status, bet.id); err != nil { log.Panic(err) }
 }
 
-func addPointsChallenge(winner int, c challenge) {
-    db := connectDB()
-	defer db.Close()
-
+func (b *botHolder) addPointsChallenge(winner int, c challenge) {
     log.Printf("Awarding %v point to %v", c.points, winner)
 
-	row := db.QueryRow("SELECT points FROM users WHERE uid=$1", winner)
+	row := b.db.QueryRow("SELECT points FROM users WHERE uid=$1", winner)
 
 	var currPoints int
 	if err := row.Scan(&currPoints); err != nil {
 		if err == sql.ErrNoRows {
-			if _, err := db.Exec("INSERT INTO users (uid, points) VALUES ($1, $2)", winner, c.points); err != nil { log.Panic(err) }
+			if _, err := b.db.Exec("INSERT INTO users (uid, points) VALUES ($1, $2)", winner, c.points); err != nil { log.Panic(err) }
 		} else {
 			log.Panic(err)
 		}
 	} else {
-		if _, err := db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, winner); err != nil { log.Panic(err) }
+		if _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, winner); err != nil { log.Panic(err) }
 	}
 
-	if _, err := db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusHandled, c.id); err != nil { log.Panic(err) }
+	if _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusHandled, c.id); err != nil { log.Panic(err) }
 }

@@ -24,8 +24,6 @@ const (
     CHECK_CHALL_INTERVAL    = "30m"
 )
 
-var DB dbInfo
-
 /*
  Main
 */
@@ -38,7 +36,7 @@ func main() {
     config.AddDriver(yaml.Driver)
     if err := config.LoadFiles(CONFIG_PATH); err != nil { panic(err) }
 
-    db := dbInfo{
+    dbinfo := dbInfo{
         host: config.String("dbHost"),
         user: config.String("dbName"),
         password: config.String("dbPass"),
@@ -46,13 +44,11 @@ func main() {
         port: config.Int("dbPort"),
     }
 
-    DB = db
-
     bot := &botHolder{
         token: config.String("botToken"),
         appID: config.String("appID"),
         owner: config.String("owner"),
-        db: connectDBonce(db),
+        db: connectDB(dbinfo),
     }
 
 	// Initialize and start the bot
@@ -63,11 +59,11 @@ func main() {
     // Interval checking stuff
     c := cron.New()
     if CHECK_BETS_INTERVAL != "" {
-        c.AddFunc("@every " + CHECK_BETS_INTERVAL, checkUnhandledBets)
+        c.AddFunc("@every " + CHECK_BETS_INTERVAL, bot.checkUnhandledBets)
         log.Printf("Checking bets every %v", CHECK_BETS_INTERVAL)
     }
     if CHECK_CHALL_INTERVAL != "" {
-        c.AddFunc("@every " + CHECK_CHALL_INTERVAL, checkUnhandledChallenges)
+        c.AddFunc("@every " + CHECK_CHALL_INTERVAL, bot.checkUnhandledChallenges)
         log.Printf("Checking challenges every %v", CHECK_CHALL_INTERVAL)
     }
     c.Start()

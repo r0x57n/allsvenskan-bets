@@ -8,6 +8,6 @@ func (b *botHolder) checkBetsCommand(i *dg.InteractionCreate) {
     if b.notOwner(getInteractUID(i)) { return }
 
     addInteractionResponse(b.session, i, NewMsg, "Checking bets...")
-    checkUnhandledBets()
-    checkUnhandledChallenges()
+    b.checkUnhandledBets()
+    b.checkUnhandledChallenges()
 }
