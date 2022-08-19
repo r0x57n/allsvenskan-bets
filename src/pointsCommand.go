@@ -8,12 +8,18 @@ import (
 	dg "github.com/bwmarrin/discordgo"
 )
 
+func newPoints(b *botHolder) *Points {
+    cmd := new(Points)
+    cmd.bot = b
+    cmd.name = PointsCommand
+    cmd.description = "testar"
+    return cmd
+}
 
-// Command: poäng
-func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
+func (cmd *Points) run(i *dg.InteractionCreate) {
     db := connectDB()
 	defer db.Close()
-    s := b.session
+    s := cmd.bot.session
 
 	rows, err := db.Query("SELECT uid, points FROM users ORDER BY points DESC LIMIT 10")
 	defer rows.Close()

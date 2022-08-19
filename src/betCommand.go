@@ -10,37 +10,28 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-type Command interface {
-    init(b *botHolder)
-    run(i *dg.InteractionCreate)
+func newBet(b *botHolder) *Bet {
+    cmd := new(Bet)
+    cmd.bot = b
+    cmd.name = HelpCommand
+    cmd.description = "testar"
+    cmd.addComponents()
+    return cmd
 }
 
-type Bet struct {
-    bot *botHolder
-    Command
-    cmd
+func (cmd *Bet) addComponents() {
+    cmd.bot.addComponent("betOnSelected", cmd.sendBetComponent)
+    cmd.bot.addComponent("betScoreHome", cmd.setScoreHome)
+    cmd.bot.addComponent("betScoreAway", cmd.setScoreAway)
 }
 
-func (bet *Bet) init(b *botHolder) {
-    bet.bot = b
-    bet.name = BetCommand
-    bet.description = "testar"
-
-    bet.addComponents()
-}
-
-func (bet *Bet) addComponents() {
-    bet.bot.addComponent("betOnSelected", betOnSelected)
-}
-
-
-func (b *Bet) run(i *dg.InteractionCreate) {
+func (cmd *Bet) run(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
     options := *getCurrentMatchesAsOptions(db)
     if len(options) == 0 {
-        addInteractionResponse(b.bot.session, i, NewMsg, "Inga matcher tillgängliga! :(")
+        addInteractionResponse(cmd.bot.session, i, NewMsg, "Inga matcher tillgängliga! :(")
         return
     }
 
@@ -76,57 +67,11 @@ func (b *Bet) run(i *dg.InteractionCreate) {
         },
     }
 
-    addCompInteractionResponse(b.bot.session, i, NewMsg, "Kommande omgångens matcher.", components)
+    addCompInteractionResponse(cmd.bot.session, i, NewMsg, "Kommande omgångens matcher.", components)
 
 }
 
-// Command: slåvad
-func (b *botHolder) betCommand(i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
-    options := *getCurrentMatchesAsOptions(db)
-    if len(options) == 0 {
-        addInteractionResponse(b.session, i, NewMsg, "Inga matcher tillgängliga! :(")
-        return
-    }
-
-    uid := getInteractUID(i)
-
-    // map match id:s to bets so we can easier build strings later
-    matchidToBet := make(map[string]bet)
-    betsRows, err := db.Query("SELECT matchid, homescore, awayscore FROM bets WHERE status=$1 AND uid=$2", BetStatusUnhandled, uid)
-    if err != nil { log.Panic(err) }
-
-    for betsRows.Next() {
-        var b bet
-        betsRows.Scan(&b.matchid, &b.homescore, &b.awayscore)
-        matchidToBet[strconv.Itoa(b.matchid)] = b
-    }
-
-    if len(matchidToBet) > 0 {
-        for i, option := range options {
-            b := matchidToBet[option.Value]
-            options[i].Label += fmt.Sprintf(" [%v-%v]", b.homescore, b.awayscore)
-        }
-    }
-
-    components := []dg.MessageComponent {
-        dg.ActionsRow {
-            Components: []dg.MessageComponent {
-                dg.SelectMenu {
-                    Placeholder: "Välj en match",
-                    CustomID: "betOnSelected", // component handler
-                    Options: options,
-                },
-            },
-        },
-    }
-
-    addCompInteractionResponse(b.session, i, NewMsg, "Kommande omgångens matcher.", components)
-}
-
-func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
+func (b *Bet) sendBetComponent(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
@@ -168,7 +113,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: "betScoreHome",
+                    CustomID: BetSetHome,
                     Placeholder: "Hemmalag",
                     Options: *getScoresAsOptions(m.id, earlierBetScore[0]),
                 },
@@ -177,7 +122,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: "betScoreAway",
+                    CustomID: BetSetAway,
                     Placeholder: "Bortalag",
                     Options: *getScoresAsOptions(m.id, earlierBetScore[1]),
                 },
@@ -188,7 +133,14 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, UpdateMsg, msg, components)
 }
 
-func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where BetLocation) {
+func (b *Bet) setScoreHome(s *dg.Session, i *dg.InteractionCreate) {
+    b.setScore(s, i, Home)
+}
+func (b *Bet) setScoreAway(s *dg.Session, i *dg.InteractionCreate) {
+    b.setScore(s, i, Away)
+}
+
+func (b *Bet) setScore(s *dg.Session, i *dg.InteractionCreate, where BetLocation) {
     db := connectDB()
     defer db.Close()
 

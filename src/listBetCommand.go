@@ -8,11 +8,19 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
+func newBets(b *botHolder) *Bets {
+    cmd := new(Bets)
+    cmd.bot = b
+    cmd.name = BetsCommand
+    cmd.description = "testar"
+    return cmd
+}
+
 // Command: vadslagningar
-func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
+func (cmd *Bets) run(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
-    s := b.session
+    s := cmd.bot.session
 
     // Get options and parse
     options := getOptionsOrRespond(s, i, NewMsg)

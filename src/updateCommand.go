@@ -6,8 +6,22 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: refresh
-func (b *botHolder) updateCommand(i *dg.InteractionCreate) {
+func newUpdate(b *botHolder) *Update {
+    cmd := new(Update)
+    cmd.bot = b
+    cmd.name = UpdateCommand
+    cmd.description = "testar"
+    cmd.addComponents()
+    return cmd
+}
+
+func (cmd *Update) addComponents() {
+    cmd.bot.addComponent("updateCommandDo", cmd.updateCommandDo)
+}
+
+func (cmd *Update) run(i *dg.InteractionCreate) {
+    b := cmd.bot
+
     if b.notOwner(getInteractUID(i)) { return }
 
     options := []dg.SelectMenuOption{
@@ -41,7 +55,9 @@ func (b *botHolder) updateCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, dg.InteractionResponseChannelMessageWithSource, "Välj kommando att uppdatera:", components)
 }
 
-func (b *botHolder) updateCommandDo(i *dg.InteractionCreate) {
+func (cmd *Update) updateCommandDo(s *dg.Session, i *dg.InteractionCreate) {
+    b := cmd.bot
+
     if b.notOwner(getInteractUID(i)) { return }
 
     components := []dg.MessageComponent {}

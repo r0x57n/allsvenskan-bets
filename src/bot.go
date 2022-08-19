@@ -19,49 +19,42 @@ func (b *botHolder) Init() {
     // Add handlers for command/component
     commandHandlers := map[string]func(s *dg.Session, i *dg.InteractionCreate) {
         // User commands
-        "hjälp": func(s *dg.Session, i *dg.InteractionCreate)         {   b.helpCommand(i)               },
-            //BetCommand: func(s *dg.Session, i *dg.InteractionCreate)      {   b.betCommand(i)                },
+        HelpCommand: func(s *dg.Session, i *dg.InteractionCreate)     {   b.commands[HelpCommand].run(i) },
         BetCommand: func(s *dg.Session, i *dg.InteractionCreate)      {   b.commands[BetCommand].run(i)  },
-        "ångra": func(s *dg.Session, i *dg.InteractionCreate)         {   b.regretCommand(i)             },
-        "utmana": func(s *dg.Session, i *dg.InteractionCreate)        {   b.challengeCommand(i)          },
-        "fegaur": func(s *dg.Session, i *dg.InteractionCreate)        {   b.chickenCommand(i)            },
-        "kommande": func(s *dg.Session, i *dg.InteractionCreate)      {   b.upcomingCommand(i)           },
-        "vadslagningar": func(s *dg.Session, i *dg.InteractionCreate) {   b.listBetsCommand(i)           },
-        "poäng": func(s *dg.Session, i *dg.InteractionCreate)         {   b.pointsCommand(i)             },
-        "inställningar": func(s *dg.Session, i *dg.InteractionCreate) {   b.settingsCommand(i)           },
-        "info": func(s *dg.Session, i *dg.InteractionCreate)          {   b.infoCommand(i)               },
+        RegretCommand: func(s *dg.Session, i *dg.InteractionCreate)         {   b.commands[RegretCommand].run(i) },
+        ChallengeCommand: func(s *dg.Session, i *dg.InteractionCreate)        {   b.commands[ChallengeCommand].run(i)},
+        ChickenCommand: func(s *dg.Session, i *dg.InteractionCreate)        {   b.commands[ChickenCommand].run(i) },
+        UpcomingCommand: func(s *dg.Session, i *dg.InteractionCreate)      {   b.commands[UpcomingCommand].run(i) },
+        BetsCommand: func(s *dg.Session, i *dg.InteractionCreate) {   b.commands[BetsCommand].run(i) },
+        PointsCommand: func(s *dg.Session, i *dg.InteractionCreate)         {   b.commands[PointsCommand].run(i) },
+        SettingsCommand: func(s *dg.Session, i *dg.InteractionCreate) {   b.commands[SettingsCommand].run(i)},
+        InfoCommand: func(s *dg.Session, i *dg.InteractionCreate)          {   b.commands[InfoCommand].run(i)},
 
         // Admin commands
-        "sammanfatta": func(s *dg.Session, i *dg.InteractionCreate)   {   b.summaryCommand(i)            },
-        "update": func(s *dg.Session, i *dg.InteractionCreate)        {   b.updateCommand(i)             },
-        "delete": func(s *dg.Session, i *dg.InteractionCreate)        {   b.deleteCommand(i)             },
-        "checkbets": func(s *dg.Session, i *dg.InteractionCreate)     {   b.checkBetsCommand(i)          },
+        SummaryCommand: func(s *dg.Session, i *dg.InteractionCreate)   {   b.commands[SummaryCommand].run(i)},
+        UpdateCommand: func(s *dg.Session, i *dg.InteractionCreate)        {  b.commands[UpdateCommand].run(i) },
+        DeleteCommand: func(s *dg.Session, i *dg.InteractionCreate)        {   b.commands[DeleteCommand].run(i)},
+        CheckCommand: func(s *dg.Session, i *dg.InteractionCreate)     {   b.commands[CheckCommand].run(i)},
     }
 
-    // Component handlers
-    b.componentHandlers = map[string]func(s *dg.Session, i *dg.InteractionCreate) {
-        "betScoreHome": func(s *dg.Session, i *dg.InteractionCreate)            {   betScoreComponent(s, i, Home)    },
-        "betScoreAway": func(s *dg.Session, i *dg.InteractionCreate)            {   betScoreComponent(s, i, Away)    },
-        "challSelectWinner": func(s *dg.Session, i *dg.InteractionCreate)       {   challSelectWinner(s, i)          },
-        "challSelectPoints": func(s *dg.Session, i *dg.InteractionCreate)       {   challSelectPoints(s, i)          },
-        "challAcceptDiscard": func(s *dg.Session, i *dg.InteractionCreate)      {   challAcceptDiscard(s, i)         },
-        "challAcceptDiscardDo": func(s *dg.Session, i *dg.InteractionCreate)    {   challAcceptDiscardDo(s, i)       },
-        "settingsVisibility": func(s *dg.Session, i *dg.InteractionCreate)      {   settingsVisibility(s, i)         },
-        "settingsChall": func(s *dg.Session, i *dg.InteractionCreate)           {   settingsChall(s, i)              },
-        "updateCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   b.updateCommandDo(i)            },
-        "deleteCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   b.deleteCommandDo(i)            },
-        "regretSelected": func(s *dg.Session, i *dg.InteractionCreate)          {   regretSelected(s, i)             },
-        "challAnswer": func(s *dg.Session, i *dg.InteractionCreate)             {   challAnswer(s, i)                },
-        "chickenSelected": func(s *dg.Session, i *dg.InteractionCreate)         {   chickenSelected(s, i)            },
-        "chickenAnswer": func(s *dg.Session, i *dg.InteractionCreate)           {   chickenAnswer(s, i)              },
-    }
+    // Component handlers are initialized within each command
+    b.componentHandlers = map[string]func(s *dg.Session, i *dg.InteractionCreate) { }
 
-    b.commands = map[CommandName]Command{}
-    b.commands[BetCommand] = new(Bet)
-
-    for _, c := range b.commands {
-        c.init(b)
-    }
+    b.commands = map[CommandName]aCommand{}
+    b.commands[BetCommand] = newBet(b)
+    b.commands[HelpCommand] = newHelp(b)
+    b.commands[ChallengeCommand] = newChallenge(b)
+    b.commands[SettingsCommand] = newSettings(b)
+    b.commands[ChickenCommand] = newChicken(b)
+    b.commands[RegretCommand] = newRegret(b)
+    b.commands[UpcomingCommand] = newUpcoming(b)
+    b.commands[BetsCommand] = newBets(b)
+    b.commands[PointsCommand] = newPoints(b)
+    b.commands[InfoCommand] = newInfo(b)
+    b.commands[SummaryCommand] = newSummary(b)
+    b.commands[UpdateCommand] = newUpdate(b)
+    b.commands[DeleteCommand] = newDelete(b)
+    b.commands[CheckCommand] = newCheck(b)
 
 	s.AddHandler(func(s *dg.Session, i *dg.InteractionCreate) {
 		switch i.Type {

@@ -9,10 +9,24 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
+func newChicken(b *botHolder) *Chicken {
+    cmd := new(Chicken)
+    cmd.bot = b
+    cmd.name = ChickenCommand
+    cmd.description = "testar"
+    cmd.addComponents()
+    return cmd
+}
+
+func (cmd *Chicken) addComponents() {
+    cmd.bot.addComponent("chickenSelected", cmd.chickenSelected)
+    cmd.bot.addComponent("chickenAnswer", cmd.chickenAnswer)
+}
+
+func (cmd *Chicken) run(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
-    s := b.session
+    s := cmd.bot.session
 
     uid := getInteractUID(i)
     challenges := *getChallenges(db, "(challengerid=$1 OR challengeeid=$2) " +
@@ -82,7 +96,7 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, NewMsg, "Dina utmaningar.", components)
 }
 
-func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Chicken) chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
@@ -159,7 +173,7 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     })
 }
 
-func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Chicken) chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 

@@ -7,8 +7,21 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: delete
-func (b *botHolder) deleteCommand(i *dg.InteractionCreate) {
+func newDelete(b *botHolder) *Delete {
+    cmd := new(Delete)
+    cmd.bot = b
+    cmd.name = DeleteCommand
+    cmd.description = "testar"
+    cmd.addComponents()
+    return cmd
+}
+
+func (cmd *Delete) addComponents() {
+    cmd.bot.addComponent("delteCommandDo", cmd.deleteCommandDo)
+}
+
+func (cmd *Delete) run(i *dg.InteractionCreate) {
+    b := cmd.bot
     if b.notOwner(getInteractUID(i)) { return }
 
     options := []dg.SelectMenuOption{}
@@ -37,8 +50,8 @@ func (b *botHolder) deleteCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, dg.InteractionResponseChannelMessageWithSource, "Välj kommando att radera:", components)
 }
 
-func (b *botHolder) deleteCommandDo(i *dg.InteractionCreate) {
-    s := b.session
+func (cmd *Delete) deleteCommandDo(s* dg.Session, i *dg.InteractionCreate) {
+    b := cmd.bot
     if b.notOwner(getInteractUID(i)) { return }
 
     val := i.MessageComponentData().Values[0]

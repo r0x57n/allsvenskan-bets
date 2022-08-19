@@ -10,9 +10,16 @@ import (
 	dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: kommande
-func (b *botHolder) upcomingCommand(i *dg.InteractionCreate) {
-    s := b.session
+func newUpcoming(b *botHolder) *Upcoming {
+    cmd := new(Upcoming)
+    cmd.bot = b
+    cmd.name = UpcomingCommand
+    cmd.description = "testar"
+    return cmd
+}
+
+func (cmd *Upcoming) run(i *dg.InteractionCreate) {
+    s := cmd.bot.session
     db := connectDB()
 	defer db.Close()
 

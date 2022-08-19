@@ -5,17 +5,89 @@ import (
 )
 
 /*
+   Structs
+*/
+
+type CommandName string
+const (
+    BetCommand = "slåvad"
+    HelpCommand = "hjälp"
+    ChallengeCommand = "utmana"
+    SettingsCommand = "inställningar"
+    ChickenCommand = "fegaur"
+    RegretCommand = "ångra"
+    UpcomingCommand = "kommande"
+    BetsCommand = "vadslagningar"
+    PointsCommand = "poäng"
+    InfoCommand = "info"
+    SummaryCommand = "sammanfatta"
+    UpdateCommand = "update"
+    DeleteCommand = "delete"
+    CheckCommand = "checkbets"
+)
+
+type ComponentName string
+const (
+    BetOnSelected = "BetOnSelected"
+    BetSetHome = "betScoreHome"
+    BetSetAway = "betScoreAway"
+
+)
+
+type CommandCategory string
+const (
+    CommandCategoryGeneral = "Allmänt"
+    CommandCategoryBetting = "Slå vad"
+    CommandCategoryListing = "Vadslagningar"
+    CommandCategoryAdmin   = "Admin"
+)
+
+/*
+  Enums
+ */
+
+type Command interface {
+    init(b *botHolder)
+    settings()
+    run(i *dg.InteractionCreate)
+}
+
+type CommandInfo struct {
+    name string
+    description string
+    category CommandCategory
+    admin bool
+    options []*dg.ApplicationCommandOption
+}
+
+type aCommand struct {
+    Command
+    CommandInfo
+    bot *botHolder
+}
+
+type Bet struct { aCommand }
+type Help struct { aCommand }
+type Challenge struct { aCommand }
+type Settings struct { aCommand }
+type Chicken struct { aCommand }
+type Regret struct { aCommand }
+type Upcoming struct { aCommand }
+type Bets struct { aCommand }
+type Points struct { aCommand }
+type Info struct { aCommand }
+type Summary struct { aCommand }
+type Update struct { aCommand }
+type Delete struct { aCommand }
+type Check struct { aCommand }
+
+
+/*
 Commands and handlers declarations
 */
 
 var (
     COMMANDS = []cmd {
-        {
-            name: "hjälp",
-            description: "Få hjälp med hur denna bot fungerar.",
-            category: CommandCategoryGeneral,
-            admin: false,
-        },
         {
             name: "slåvad",
             description: "Slå vad om en kommande match.",

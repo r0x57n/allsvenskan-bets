@@ -6,11 +6,24 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: inställningar
-func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
+func newSettings(b *botHolder) *Settings {
+    cmd := new(Settings)
+    cmd.bot = b
+    cmd.name = HelpCommand
+    cmd.description = "testar"
+    cmd.addComponents()
+    return cmd
+}
+
+func (cmd *Settings) addComponents() {
+    cmd.bot.addComponent("settingsVisibility", cmd.settingsVisibility)
+    cmd.bot.addComponent("settingsChall", cmd.settingsChall)
+}
+
+func (cmd *Settings) run(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
-    s := b.session
+    s := cmd.bot.session
 
     uid := getInteractUID(i)
     u := getUser(db, uid)
@@ -104,7 +117,7 @@ func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, NewMsg, msg, components)
 }
 
-func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Settings) settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
@@ -119,7 +132,7 @@ func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
     addNoInteractionResponse(s, i)
 }
 
-func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Settings) settingsChall(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 

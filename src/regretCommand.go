@@ -9,10 +9,23 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
+func newRegret(b *botHolder) *Regret {
+    cmd := new(Regret)
+    cmd.bot = b
+    cmd.name = RegretCommand
+    cmd.description = "testar"
+    cmd.addComponents()
+    return cmd
+}
+
+func (cmd *Regret) addComponents() {
+    cmd.bot.addComponent("regretSelected", cmd.regretSelected)
+}
+
+func (cmd *Regret) run(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
-    s := b.session
+    s := cmd.bot.session
 
     uid := getInteractUID(i)
 
@@ -64,7 +77,7 @@ func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, NewMsg, "Dina vadslagningar", components)
 }
 
-func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Regret) regretSelected(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 

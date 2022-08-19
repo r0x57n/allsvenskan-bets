@@ -31,10 +31,27 @@ import (
     _ "github.com/lib/pq"
 )
 
-func (b *botHolder) challengeCommand(i *dg.InteractionCreate) {
+func newChallenge(b *botHolder) *Challenge {
+    cmd := new(Challenge)
+    cmd.bot = b
+    cmd.name = HelpCommand
+    cmd.description = "testar"
+    cmd.addComponents()
+    return cmd
+}
+
+func (cmd *Challenge) addComponents() {
+    cmd.bot.addComponent("challSelectWinner", cmd.challSelectWinner)
+    cmd.bot.addComponent("challSelectPoints", cmd.challSelectPoints)
+    cmd.bot.addComponent("challAcceptDiscard", cmd.challAcceptDiscard)
+    cmd.bot.addComponent("challAcceptDiscardDo", cmd.challAcceptDiscardDo)
+    cmd.bot.addComponent("challAnswer", cmd.challAnswer)
+}
+
+func (cmd *Challenge) run(i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
-    s := b.session
+    s := cmd.bot.session
 
     msgOptions := getOptionsOrRespond(s, i, NewMsg)
     if msgOptions == nil { return }
@@ -113,7 +130,7 @@ func (b *botHolder) challengeCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, NewMsg, msg, components)
 }
 
-func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Challenge) challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
@@ -157,7 +174,7 @@ func challSelectWinner(s *dg.Session, i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, UpdateMsg, msg, components)
 }
 
-func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Challenge) challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
@@ -204,7 +221,7 @@ func challSelectPoints(s *dg.Session, i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, UpdateMsg, msg, components)
 }
 
-func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Challenge) challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
@@ -262,7 +279,7 @@ func challAcceptDiscard(s *dg.Session, i *dg.InteractionCreate) {
     addCompInteractionResponse(s, i, UpdateMsg, msg, components)
 }
 
-func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Challenge) challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 
@@ -352,10 +369,10 @@ func challAcceptDiscardDo(s *dg.Session, i *dg.InteractionCreate) {
     components := []dg.MessageComponent {}
     addCompInteractionResponse(s, i, UpdateMsg, msg, components)
 
-    sendChallenge(s, interactionUID, challengee.ID, int(insertedCID), points)
+    cmd.sendChallenge(s, interactionUID, challengee.ID, int(insertedCID), points)
 }
 
-func sendChallenge(s *dg.Session, challengerID string, challengeeid string, cid int, points string) {
+func (cmd *Challenge) sendChallenge(s *dg.Session, challengerID string, challengeeid string, cid int, points string) {
     db := connectDB()
     defer db.Close()
 
@@ -415,7 +432,7 @@ func sendChallenge(s *dg.Session, challengerID string, challengeeid string, cid 
     })
 }
 
-func challAnswer(s *dg.Session, i *dg.InteractionCreate) {
+func (cmd *Challenge) challAnswer(s *dg.Session, i *dg.InteractionCreate) {
     db := connectDB()
     defer db.Close()
 

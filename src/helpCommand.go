@@ -5,9 +5,17 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: hjälp
-func (b *botHolder) helpCommand(i *dg.InteractionCreate) {
-    isOwner := getInteractUID(i) == b.owner
+func newHelp(b *botHolder) *Help {
+    h := new(Help)
+    h.bot = b
+    h.name = "hjälp"
+    h.description = "Få hjälp med hur denna bot fungerar."
+    h.category = CommandCategoryGeneral
+    return h
+}
+
+func (cmd *Help) run(i *dg.InteractionCreate) {
+    isOwner := getInteractUID(i) == cmd.bot.owner
 
     help := "Du kan */slåvad* över en match. Då slår du vad om hur du tror en match kommer sluta poängmässigt. Har du rätt vinner du poäng som kan användas till antingen **skryträtt**, eller för att */utmana* andra användare. "
     help += "När du utmanar en annan användare väljer du en utmaning och hur många poäng du satsar på ditt utfall. Vinnaren tar alla poängen.\n"
@@ -19,7 +27,7 @@ func (b *botHolder) helpCommand(i *dg.InteractionCreate) {
     bettingCmds := ""
     listingCmds := ""
 
-    for _, cmd := range COMMANDS {
+    for _, cmd := range cmd.bot.commands {
         switch cmd.category {
             case CommandCategoryAdmin:
                 adminCmds += fmt.Sprintf("/%v - %v\n", cmd.name, cmd.description)
@@ -54,5 +62,5 @@ func (b *botHolder) helpCommand(i *dg.InteractionCreate) {
         })
     }
 
-    addEmbeddedInteractionResponse(b.session, i, NewMsg, fields, "Hjälpsida", help)
+    addEmbeddedInteractionResponse(cmd.bot.session, i, NewMsg, fields, "Hjälpsida", help)
 }

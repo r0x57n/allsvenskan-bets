@@ -10,9 +10,17 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
+func newSummary(b *botHolder) *Summary {
+    cmd := new(Summary)
+    cmd.bot = b
+    cmd.name = SummaryCommand
+    cmd.description = "testar"
+    return cmd
+}
+
 // Command: sammanfatta
-func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
-    if b.notOwner(getInteractUID(i)) { return }
+func (cmd *Summary) run(i *dg.InteractionCreate) {
+    if cmd.bot.notOwner(getInteractUID(i)) { return }
 
     db := connectDB()
     defer db.Close()
@@ -66,7 +74,7 @@ func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
 
     for i, k := range keys {
         if i <= 3 {
-            username, _ := b.session.User(strconv.Itoa(k))
+            username, _ := cmd.bot.session.User(strconv.Itoa(k))
             topThree += fmt.Sprintf("#%v - %v med %v vinster\n", i + 1, username.Username, wins[k])
         }
     }
@@ -75,5 +83,5 @@ func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
     msg += fmt.Sprintf("**%v**:st vann sina vad medans **%v**:st förlorade.\n\n", won, lost)
     msg += topThree
 
-    addInteractionResponse(b.session, i, NewMsg, msg)
+    addInteractionResponse(cmd.bot.session, i, NewMsg, msg)
 }
