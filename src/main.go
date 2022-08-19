@@ -22,10 +22,8 @@ const (
     CONFIG_PATH             = "../config.yml"
     CHECK_BETS_INTERVAL     = "30m"
     CHECK_CHALL_INTERVAL    = "30m"
-    CHECK_MATCHES_INTERVAL  = "2h"
+    UPDATE_MATCHES_INTERVAL = "2h"
 )
-
-var MATCHES_UPDATER_PATH = ""
 
 /*
  Main
@@ -38,8 +36,6 @@ func main() {
     config.WithOptions(config.ParseEnv)
     config.AddDriver(yaml.Driver)
     if err := config.LoadFiles(CONFIG_PATH); err != nil { panic(err) }
-
-    MATCHES_UPDATER_PATH = config.String("updaterPath")
 
     dbinfo := dbInfo{
         host: config.String("dbHost"),
@@ -54,6 +50,7 @@ func main() {
         appID: config.String("appID"),
         owner: config.String("owner"),
         db: connectDB(dbinfo),
+        updaterPath: config.String("updaterPath"),
     }
 
 	// Initialize and start the bot
@@ -70,6 +67,10 @@ func main() {
     if CHECK_CHALL_INTERVAL != "" {
         c.AddFunc("@every " + CHECK_CHALL_INTERVAL, bot.checkUnhandledChallenges)
         log.Printf("Checking challenges every %v", CHECK_CHALL_INTERVAL)
+    }
+    if UPDATE_MATCHES_INTERVAL != "" {
+        c.AddFunc("@every " + UPDATE_MATCHES_INTERVAL, func(){ bot.updateMatches(false) })
+        log.Printf("Updating matches every %v", UPDATE_MATCHES_INTERVAL)
     }
     c.Start()
 

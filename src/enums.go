@@ -70,9 +70,10 @@ const (
     SettingsCommand     = "inställningar"
     InfoCommand         = "info"
     SummaryCommand      = "sammanfatta"
-    UpdateCommand       = "update"
-    DeleteCommand       = "delete"
+    RefreshCommand      = "refresh"
+    RemoveCommand       = "remove"
     CheckCommand        = "checkbets"
+    UpdateCommand       = "update"
 )
 
 type CommandCategory string
@@ -94,8 +95,8 @@ const (
     ChallAcceptDiscardDo = "challAcceptDiscardDo"
     SettingsVisibility = "settingsVisibility"
     SettingsChall = "settingsChall"
-    UpdateCommandDo = "updateCommandDo"
-    DeleteCommandDo = "deleteCommandDo"
+    RefreshCommandDo = "updateCommandDo"
+    RemoveCommandDo = "deleteCommandDo"
     RegretSelected = "regretSelected"
     ChallAnswer = "challAnswer"
     ChickenSelected = "chickenSelected"

@@ -7,7 +7,7 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func (b *botHolder) deleteCommand(i *dg.InteractionCreate) {
+func (b *botHolder) removeCommand(i *dg.InteractionCreate) {
     if b.notOwner(getInteractUID(i)) { return }
 
     options := []dg.SelectMenuOption{}
@@ -26,7 +26,7 @@ func (b *botHolder) deleteCommand(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj ett kommando att radera",
-                    CustomID: DeleteCommandDo,
+                    CustomID: RemoveCommandDo,
                     Options: options,
                 },
             },
@@ -36,7 +36,7 @@ func (b *botHolder) deleteCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, dg.InteractionResponseChannelMessageWithSource, "Välj kommando att radera:", components)
 }
 
-func (b *botHolder) deleteCommandDo(i *dg.InteractionCreate) {
+func (b *botHolder) removeCommandDo(i *dg.InteractionCreate) {
     if b.notOwner(getInteractUID(i)) { return }
 
     val := i.MessageComponentData().Values[0]

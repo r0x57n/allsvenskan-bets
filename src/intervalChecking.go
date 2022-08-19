@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
+    "fmt"
 	"time"
+    "os/exec"
 	"database/sql"
     _ "github.com/lib/pq"
 )
@@ -80,6 +82,7 @@ func (b *botHolder) checkUnhandledChallenges() {
 
 	if len(challenges) == 0 {
 		log.Print("No challenges to handle!")
+        b.messageOwner("Inga utmaningar att hantera!")
 	} else {
 		log.Printf("%v challenges today...", len(challenges))
 
@@ -149,4 +152,23 @@ func (b *botHolder) addPointsChallenge(winner int, c challenge) {
 	}
 
 	if _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusHandled, c.id); err != nil { log.Panic(err) }
+}
+
+func (b *botHolder) updateMatches(interactive bool) {
+    log.Printf("Starting updater...")
+
+    cmd := exec.Command("./updater")
+    cmd.Dir = b.updaterPath
+
+    if err := cmd.Run(); err != nil {
+        log.Printf("Couldn't run updater: %v", err)
+        b.messageOwner(fmt.Sprintf("Gick inte att uppdatera matcher: %v", err))
+        return
+    }
+
+    if (interactive) {
+        b.messageOwner("Matcher uppdaterade.")
+    }
+
+    log.Printf("Finished updater...")
 }

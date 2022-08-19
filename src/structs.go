@@ -10,6 +10,7 @@ type botHolder struct {
     appID string
     guildID string
     owner string
+    updaterPath string
     session *dg.Session
     db *sql.DB
     commands []command

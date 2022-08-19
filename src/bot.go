@@ -34,9 +34,10 @@ func (b *botHolder) Init() {
         SummaryCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.summaryCommand(i)     },
 
         // Admin commands
-        UpdateCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.updateCommand(i)      },
-        DeleteCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.deleteCommand(i)      },
+        RefreshCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.refreshCommand(i)      },
+        RemoveCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.removeCommand(i)      },
         CheckCommand:       func(s *dg.Session, i *dg.InteractionCreate) {    b.checkBetsCommand(i)   },
+        UpdateCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.updateCommand(i)      },
     }
 
     // Component handlers
@@ -51,8 +52,8 @@ func (b *botHolder) Init() {
         ChallAnswer:          func(s *dg.Session, i *dg.InteractionCreate) {   b.challAnswer(i)                },
         SettingsVisibility:   func(s *dg.Session, i *dg.InteractionCreate) {   b.settingsVisibility(i)         },
         SettingsChall:        func(s *dg.Session, i *dg.InteractionCreate) {   b.settingsChall(i)              },
-        UpdateCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.updateCommandDo(i)            },
-        DeleteCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.deleteCommandDo(i)            },
+        RefreshCommandDo:     func(s *dg.Session, i *dg.InteractionCreate) {   b.refreshCommandDo(i)           },
+        RemoveCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.removeCommandDo(i)            },
         RegretSelected:       func(s *dg.Session, i *dg.InteractionCreate) {   b.regretSelected(i)             },
         ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenSelected(i)            },
         ChickenAnswer:        func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenAnswer(i)              },
@@ -88,6 +89,11 @@ func (b *botHolder) Close() {
 func (b *botHolder) notOwner(uid string) bool {
     if b.owner != uid { return true }
     return false
+}
+
+func (b *botHolder) messageOwner(msg string) {
+    channelID, _ := b.session.UserChannelCreate(b.owner)
+    b.session.ChannelMessageSend(channelID.ID, msg)
 }
 
 func (b *botHolder) addCommands() {
@@ -199,13 +205,13 @@ func (b *botHolder) addCommands() {
             category: CommandCategoryGeneral,
         },
         {
-            name: UpdateCommand,
+            name: RefreshCommand,
             description: "Uppdatera alla kommandon eller ett enskilt.",
             category: CommandCategoryAdmin,
             admin: true,
         },
         {
-            name: DeleteCommand,
+            name: RemoveCommand,
             description: "Ta bort ett enskilt kommando.",
             category: CommandCategoryAdmin,
             admin: true,
@@ -213,6 +219,12 @@ func (b *botHolder) addCommands() {
         {
             name: CheckCommand,
             description: "Kör checks för challenges/bets.",
+            category: CommandCategoryAdmin,
+            admin: true,
+        },
+        {
+            name: UpdateCommand,
+            description: "Uppdaterar matcher manuellt.",
             category: CommandCategoryAdmin,
             admin: true,
         },
