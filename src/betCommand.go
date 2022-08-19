@@ -10,6 +10,76 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
+type Command interface {
+    init(b *botHolder)
+    run(i *dg.InteractionCreate)
+}
+
+type Bet struct {
+    bot *botHolder
+    Command
+    cmd
+}
+
+func (bet *Bet) init(b *botHolder) {
+    bet.bot = b
+    bet.name = BetCommand
+    bet.description = "testar"
+
+    bet.addComponents()
+}
+
+func (bet *Bet) addComponents() {
+    bet.bot.addComponent("betOnSelected", betOnSelected)
+}
+
+
+func (b *Bet) run(i *dg.InteractionCreate) {
+    db := connectDB()
+    defer db.Close()
+
+    options := *getCurrentMatchesAsOptions(db)
+    if len(options) == 0 {
+        addInteractionResponse(b.bot.session, i, NewMsg, "Inga matcher tillgängliga! :(")
+        return
+    }
+
+    uid := getInteractUID(i)
+
+    // map match id:s to bets so we can easier build strings later
+    matchidToBet := make(map[string]bet)
+    betsRows, err := db.Query("SELECT matchid, homescore, awayscore FROM bets WHERE status=$1 AND uid=$2", BetStatusUnhandled, uid)
+    if err != nil { log.Panic(err) }
+
+    for betsRows.Next() {
+        var b bet
+        betsRows.Scan(&b.matchid, &b.homescore, &b.awayscore)
+        matchidToBet[strconv.Itoa(b.matchid)] = b
+    }
+
+    if len(matchidToBet) > 0 {
+        for i, option := range options {
+            b := matchidToBet[option.Value]
+            options[i].Label += fmt.Sprintf(" [%v-%v]", b.homescore, b.awayscore)
+        }
+    }
+
+    components := []dg.MessageComponent {
+        dg.ActionsRow {
+            Components: []dg.MessageComponent {
+                dg.SelectMenu {
+                    Placeholder: "Välj en match",
+                    CustomID: "betOnSelected", // component handler
+                    Options: options,
+                },
+            },
+        },
+    }
+
+    addCompInteractionResponse(b.bot.session, i, NewMsg, "Kommande omgångens matcher.", components)
+
+}
+
 // Command: slåvad
 func (b *botHolder) betCommand(i *dg.InteractionCreate) {
     db := connectDB()
