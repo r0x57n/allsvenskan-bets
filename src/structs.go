@@ -12,24 +12,17 @@ type botHolder struct {
     owner string
     session *dg.Session
     db *sql.DB
+    commands []command
     commandHandlers map[string]func(s *dg.Session, i *dg.InteractionCreate)
     componentHandlers map[string]func(s *dg.Session, i *dg.InteractionCreate)
 }
 
-type database struct {
+type dbInfo struct {
     host string
     port int
     user string
     password string
     name  string
-}
-
-type cmd struct {
-    name string
-    description string
-    category CommandCategory
-    admin bool
-    options []*dg.ApplicationCommandOption
 }
 
 type match struct {
@@ -69,4 +62,12 @@ type user struct {
     bank string
     viewable bool
     interactable bool
+}
+
+type command struct {
+    name string
+    description string
+    category CommandCategory
+    admin bool
+    options []*dg.ApplicationCommandOption
 }

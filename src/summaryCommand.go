@@ -10,7 +10,6 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: sammanfatta
 func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
     if b.notOwner(getInteractUID(i)) { return }
 

@@ -53,6 +53,18 @@ func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m match) bool {
    We take care to let the SQL package prepare the statements, see: https://go.dev/doc/database/sql-injection
 */
 
+func connectDBonce(i dbInfo) *sql.DB {
+    dbInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+                        i.host, i.port, i.user, i.password, i.name)
+    db, err := sql.Open(DB_TYPE, dbInfo)
+    if err != nil {
+        log.Fatalf("Couldn't connect to database: %v", err)
+    }
+
+    return db
+}
+
+
 func connectDB() *sql.DB {
     dbInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
                         DB.host, DB.port, DB.user, DB.password, DB.name)

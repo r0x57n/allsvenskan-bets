@@ -10,12 +10,8 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: slåvad
 func (b *botHolder) betCommand(i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
-    options := *getCurrentMatchesAsOptions(db)
+    options := *getCurrentMatchesAsOptions(b.db)
     if len(options) == 0 {
         addInteractionResponse(b.session, i, NewMsg, "Inga matcher tillgängliga! :(")
         return
@@ -25,7 +21,7 @@ func (b *botHolder) betCommand(i *dg.InteractionCreate) {
 
     // map match id:s to bets so we can easier build strings later
     matchidToBet := make(map[string]bet)
-    betsRows, err := db.Query("SELECT matchid, homescore, awayscore FROM bets WHERE status=$1 AND uid=$2", BetStatusUnhandled, uid)
+    betsRows, err := b.db.Query("SELECT matchid, homescore, awayscore FROM bets WHERE status=$1 AND uid=$2", BetStatusUnhandled, uid)
     if err != nil { log.Panic(err) }
 
     for betsRows.Next() {
@@ -46,7 +42,7 @@ func (b *botHolder) betCommand(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj en match",
-                    CustomID: "betOnSelected", // component handler
+                    CustomID: BetOnSelected, // component handler
                     Options: options,
                 },
             },
@@ -56,36 +52,33 @@ func (b *botHolder) betCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, NewMsg, "Kommande omgångens matcher.", components)
 }
 
-func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
-    values := getValuesOrRespond(s, i, UpdateMsg)
+func (b *botHolder) betOnSelected(i *dg.InteractionCreate) {
+    values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
 
     mid := values[0]
     uid := getInteractUID(i)
 
     earlierBetScore := [2]int {-1, -1}
-    earlierBet := getBet(db, "uid=$1 AND matchid=$2", uid, mid)
+    earlierBet := getBet(b.db, "uid=$1 AND matchid=$2", uid, mid)
     if earlierBet.id != -1 {
         earlierBetScore[0], earlierBetScore[1] = earlierBet.homescore, earlierBet.awayscore
     }
 
-    m := getMatch(db, "id=$1", mid)
+    m := getMatch(b.db, "id=$1", mid)
     if m.id == -1 {
-        addErrorResponse(s, i, UpdateMsg)
+        addErrorResponse(b.session, i, UpdateMsg)
         return
     }
 
     datetime, err := time.Parse(DB_TIME_LAYOUT, m.date)
     if err != nil {
-        addErrorResponse(s, i, NewMsg, "Couldn't translate match date from database...")
+        addErrorResponse(b.session, i, NewMsg, "Couldn't translate match date from database...")
         return
     }
 
     if time.Now().After(datetime) {
-        addCompInteractionResponse(s, i, UpdateMsg, "Du kan inte betta på en match som startat.", []dg.MessageComponent{})
+        addCompInteractionResponse(b.session, i, UpdateMsg, "Du kan inte betta på en match som startat.", []dg.MessageComponent{})
         return
     }
 
@@ -98,7 +91,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: "betScoreHome",
+                    CustomID: BetScoreHome,
                     Placeholder: "Hemmalag",
                     Options: *getScoresAsOptions(m.id, earlierBetScore[0]),
                 },
@@ -107,7 +100,7 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: "betScoreAway",
+                    CustomID: BetScoreAway,
                     Placeholder: "Bortalag",
                     Options: *getScoresAsOptions(m.id, earlierBetScore[1]),
                 },
@@ -115,14 +108,11 @@ func betOnSelected(s *dg.Session, i *dg.InteractionCreate) {
         },
     }
 
-    addCompInteractionResponse(s, i, UpdateMsg, msg, components)
+    addCompInteractionResponse(b.session, i, UpdateMsg, msg, components)
 }
 
-func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where BetLocation) {
-    db := connectDB()
-    defer db.Close()
-
-    values := getValuesOrRespond(s, i, UpdateMsg)
+func (b *botHolder) betScoreComponent(i *dg.InteractionCreate, where BetLocation) {
+    values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
 
     var (
@@ -145,30 +135,30 @@ func betScoreComponent(s *dg.Session, i *dg.InteractionCreate, where BetLocation
             score = awayscore
             awayOrHome = "away"
         default:
-            addErrorResponse(s, i, UpdateMsg)
+            addErrorResponse(b.session, i, UpdateMsg)
             return
     }
 
-    m := getMatch(db, "id=$1", mid)
+    m := getMatch(b.db, "id=$1", mid)
     if m.id == -1 {
-        addErrorResponse(s, i, UpdateMsg)
+        addErrorResponse(b.session, i, UpdateMsg)
         return
     }
 
-    if matchHasBegun(s, i, m) {
-        addCompInteractionResponse(s, i, UpdateMsg, "Matchen har startat...", []dg.MessageComponent{})
+    if matchHasBegun(b.session, i, m) {
+        addCompInteractionResponse(b.session, i, UpdateMsg, "Matchen har startat...", []dg.MessageComponent{})
         return
     }
 
     var err error
-    hasBettedBefore := getBet(db, "uid=$1 AND matchid=$2", uid, mid).id != -1
+    hasBettedBefore := getBet(b.db, "uid=$1 AND matchid=$2", uid, mid).id != -1
     if hasBettedBefore {
-        _, err = db.Exec("UPDATE bets SET " + awayOrHome + "score=$1 WHERE uid=$2 AND matchid=$3", score, uid, mid)
+        _, err = b.db.Exec("UPDATE bets SET " + awayOrHome + "score=$1 WHERE uid=$2 AND matchid=$3", score, uid, mid)
         if err != nil { log.Panic(err) }
     } else {
-        _, err = db.Exec("INSERT INTO bets (uid, matchid, homescore, awayscore) VALUES ($1, $2, $3, $4)", uid, mid, homescore, awayscore)
+        _, err = b.db.Exec("INSERT INTO bets (uid, matchid, homescore, awayscore) VALUES ($1, $2, $3, $4)", uid, mid, homescore, awayscore)
         if err != nil { log.Panic(err) }
     }
 
-    addNoInteractionResponse(s, i)
+    addNoInteractionResponse(b.session, i)
 }

@@ -8,14 +8,9 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: vadslagningar
 func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-    s := b.session
-
     // Get options and parse
-    options := getOptionsOrRespond(s, i, NewMsg)
+    options := getOptionsOrRespond(b.session, i, NewMsg)
     if options == nil { return }
     uid := options[0].Value
 
@@ -26,11 +21,11 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
 
     desc := ""
 
-    userToView := getUser(db, fmt.Sprint(uid))
-    userNotViewingThemselves := userToView.uid != getUserFromInteraction(db, i).uid
+    userToView := getUser(b.db, fmt.Sprint(uid))
+    userNotViewingThemselves := userToView.uid != getUserFromInteraction(b.db, i).uid
     if !userToView.viewable && userNotViewingThemselves {
         desc := "Användaren har valt att dölja sina vadslagningar."
-        addInteractionResponse(s, i, NewMsg, desc)
+        addInteractionResponse(b.session, i, NewMsg, desc)
         return
     } else if !userToView.viewable && !userNotViewingThemselves {
         desc = "Andra användare kan inte se dina vadslagningar."
@@ -45,36 +40,36 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
         case All:
             where = "uid=$1 AND status=1"
         default:
-            addErrorResponse(s, i, NewMsg, "Got unidentifiable listTypes in listBetsCommand.")
+            addErrorResponse(b.session, i, NewMsg, "Got unidentifiable listTypes in listBetsCommand.")
             return
     }
 
-    rows, err := db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam " +
-                          "FROM bets AS b " +
-                          "JOIN matches AS m ON b.matchid=m.id " +
-                          "WHERE " + where, uid)
+    rows, err := b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam " +
+                            "FROM bets AS b " +
+                            "JOIN matches AS m ON b.matchid=m.id " +
+                            "WHERE " + where, uid)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 
     wonBets, lostBets := "-", "-"
 
     for rows.Next() {
-        var b bet
+        var bet bet
         var m match
 
-        rows.Scan(&b.homescore, &b.awayscore, &b.matchid, &b.status, &m.hometeam, &m.awayteam)
+        rows.Scan(&bet.homescore, &bet.awayscore, &bet.matchid, &bet.status, &m.hometeam, &m.awayteam)
 
-        switch b.status {
+        switch bet.status {
             case BetStatusLost:
                 if lostBets == "-" { lostBets = "" }
-                lostBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.hometeam, b.homescore, m.awayteam, b.awayscore)
+                lostBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore)
             case BetStatusWon:
                 if wonBets == "-" { wonBets = "" }
-                wonBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.hometeam, b.homescore, m.awayteam, b.awayscore)
+                wonBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore)
             case BetStatusUnhandled:
                 continue
             default:
-                addErrorResponse(s, i, NewMsg, "Got unidentifiable b.status in listBetsCommand.")
+                addErrorResponse(b.session, i, NewMsg, "Got unidentifiable b.status in listBetsCommand.")
                 return
         }
     }
@@ -83,11 +78,11 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
         desc = fmt.Sprintf("Användaren har inga vadslagningar ännu!", )
     }
 
-    rows, err = db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, " +
-                         "m.hometeam, m.awayteam " +
-                         "FROM challenges AS c " +
-                         "JOIN matches AS m ON c.matchid=m.id " +
-                         "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND c.status=$3", uid, uid, ChallengeStatusHandled)
+    rows, err = b.db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, " +
+                           "m.hometeam, m.awayteam " +
+                           "FROM challenges AS c " +
+                           "JOIN matches AS m ON c.matchid=m.id " +
+                           "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND c.status=$3", uid, uid, ChallengeStatusHandled)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 
@@ -105,9 +100,9 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
         rows.Scan(&c.challengerid, &c.challengeeid, &c.points, &c.condition,
                   &m.hometeam, &m.awayteam)
 
-        challenger, err := s.User(strconv.Itoa(c.challengerid))
+        challenger, err := b.session.User(strconv.Itoa(c.challengerid))
         if err != nil { log.Panic(err) }
-        challengee, err := s.User(strconv.Itoa(c.challengeeid))
+        challengee, err := b.session.User(strconv.Itoa(c.challengeeid))
         if err != nil { log.Panic(err) }
 
         winOrLose := "vinna"
@@ -154,5 +149,5 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
         Value: challenges,
     })
 
-    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Vadslagningar", desc)
+    addEmbeddedInteractionResponse(b.session, i, NewMsg, fields, "Vadslagningar", desc)
 }

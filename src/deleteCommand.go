@@ -26,7 +26,7 @@ func (b *botHolder) deleteCommand(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj ett kommando att radera",
-                    CustomID: "deleteCommandDo",
+                    CustomID: DeleteCommandDo,
                     Options: options,
                 },
             },

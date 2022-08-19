@@ -10,17 +10,13 @@ import (
 )
 
 func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-    s := b.session
-
     uid := getInteractUID(i)
-    challenges := *getChallenges(db, "(challengerid=$1 OR challengeeid=$2) " +
-                                     "AND (status=$3 OR status=$4)",
-                                     uid, uid, ChallengeStatusSent, ChallengeStatusAccepted)
+    challenges := *getChallenges(b.db, "(challengerid=$1 OR challengeeid=$2) " +
+                                       "AND (status=$3 OR status=$4)",
+                                        uid, uid, ChallengeStatusSent, ChallengeStatusAccepted)
 
     if len(challenges) == 0 {
-        addInteractionResponse(s, i, NewMsg, "Inga utmaningar gjorda!")
+        addInteractionResponse(b.session, i, NewMsg, "Inga utmaningar gjorda!")
         return
     }
 
@@ -31,10 +27,10 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
         hometeam := ""
         awayteam := ""
         username := ""
-        m := getMatch(db, "id=$1", c.matchid)
+        m := getMatch(b.db, "id=$1", c.matchid)
 
         if strconv.Itoa(c.challengerid) == uid {
-            challengee, _ := s.User(strconv.Itoa(c.challengeeid))
+            challengee, _ := b.session.User(strconv.Itoa(c.challengeeid))
             username = challengee.Username
 
             if c.condition == ChallengeConditionWinnerHome {
@@ -45,7 +41,7 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
                 awayteam = "[" + m.awayteam + "]"
             }
         } else {
-            challenger, _ := s.User(strconv.Itoa(c.challengerid))
+            challenger, _ := b.session.User(strconv.Itoa(c.challengerid))
             username = challenger.Username
 
             if c.condition == ChallengeConditionWinnerAway {
@@ -72,26 +68,23 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj en match",
-                    CustomID: "chickenSelected", // component handler
+                    CustomID: ChickenSelected,
                     Options: options,
                 },
             },
         },
     }
 
-    addCompInteractionResponse(s, i, NewMsg, "Dina utmaningar.", components)
+    addCompInteractionResponse(b.session, i, NewMsg, "Dina utmaningar.", components)
 }
 
-func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
+func (b *botHolder) chickenSelected(i *dg.InteractionCreate) {
     interactionUID, _ := strconv.Atoi(getInteractUID(i))
-    vals := getValuesOrRespond(s, i, UpdateMsg)
+    vals := getValuesOrRespond(b.session, i, UpdateMsg)
     if vals == nil { return }
 
     cid := vals[0]
-    c := getChallenge(db, "id=$1", cid)
+    c := getChallenge(b.db, "id=$1", cid)
 
     contactID := c.challengerid
     requesterIsChallenger := interactionUID == c.challengerid;
@@ -100,13 +93,13 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
     }
 
     // Creates a DM channel (or fetches the one existing)
-    channelID, _ := s.UserChannelCreate(strconv.Itoa(contactID))
+    channelID, _ := b.session.UserChannelCreate(strconv.Itoa(contactID))
 
     components := []dg.MessageComponent {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: "chickenAnswer",
+                    CustomID: ChickenAnswer,
                     Placeholder: "Välj ett alternativ...",
                     Options: []dg.SelectMenuOption{
                         {
@@ -123,24 +116,24 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
         },
     }
 
-    user, _ := s.User(getInteractUID(i))
-    m := getMatch(db, "id=$1", c.matchid)
+    user, _ := b.session.User(getInteractUID(i))
+    m := getMatch(b.db, "id=$1", c.matchid)
     msg := fmt.Sprintf("**%v** vill avbryta om **%v** vs **%v** för **%v** poäng, vad vill du göra?",
                         user.Username, m.hometeam, m.awayteam, c.points)
 
     if c.status == ChallengeStatusSent {
-        _, err := db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusDeclined, c.id)
+        _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusDeclined, c.id)
         if err != nil { log.Panic(err) }
 
-        _, err = db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengerid)
+        _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengerid)
         if err != nil { log.Panic(err) }
 
-        addCompInteractionResponse(s, i, UpdateMsg, "Utmaningen borttagen.", []dg.MessageComponent{})
+        addCompInteractionResponse(b.session, i, UpdateMsg, "Utmaningen borttagen.", []dg.MessageComponent{})
 
         msg = fmt.Sprintf("**%v** avbröt utmaningen om **%v** vs **%v** för **%v** poäng.",
                             user.Username, m.hometeam, m.awayteam, c.points)
 
-        s.ChannelMessageSendComplex(channelID.ID, &dg.MessageSend{
+        b.session.ChannelMessageSendComplex(channelID.ID, &dg.MessageSend{
             Content: msg,
             Components: []dg.MessageComponent{},
         })
@@ -148,28 +141,25 @@ func chickenSelected(s *dg.Session, i *dg.InteractionCreate) {
         return
     }
 
-    _, err := db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusRequestForfeit, c.id)
+    _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusRequestForfeit, c.id)
     if err != nil { log.Panic(err) }
 
-    addCompInteractionResponse(s, i, UpdateMsg, "Skickat förfrågan om att avbryta utmaningen.", []dg.MessageComponent{})
+    addCompInteractionResponse(b.session, i, UpdateMsg, "Skickat förfrågan om att avbryta utmaningen.", []dg.MessageComponent{})
 
-    s.ChannelMessageSendComplex(channelID.ID, &dg.MessageSend{
+    b.session.ChannelMessageSendComplex(channelID.ID, &dg.MessageSend{
         Content: msg,
         Components: components,
     })
 }
 
-func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
+func (b *botHolder) chickenAnswer(i *dg.InteractionCreate) {
     vals := i.MessageComponentData().Values
 
     splitted := strings.Split(vals[0], "_")
     answer := splitted[0]
     cid := splitted[1]
 
-    c := getChallenge(db, "id=$1", cid)
+    c := getChallenge(b.db, "id=$1", cid)
 
     msgChicken := ""
     msgAcceptor := ""
@@ -177,16 +167,16 @@ func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
         msgChicken = fmt.Sprintf("Din förfrågan om att fega ur har blivit accepterad.")
         msgAcceptor = fmt.Sprintf("Skickar bekräftelse till fegisen.")
 
-        _, err := db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengerid)
+        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengerid)
         if err != nil { log.Panic(err) }
-        _, err = db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengeeid)
+        _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengeeid)
         if err != nil { log.Panic(err) }
-        _, err = db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusForfeited, cid)
+        _, err = b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusForfeited, cid)
         if err != nil { log.Panic(err) }
     } else if answer == "decline" {
         msgChicken = fmt.Sprintf("Din förfrågan om att fega ur har blivit nekad.")
         msgAcceptor = fmt.Sprintf("Du har nekat fegisens förfrågan.")
-        _, err := db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusAccepted, cid)
+        _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusAccepted, cid)
         if err != nil { log.Panic(err) }
     }
 
@@ -197,8 +187,8 @@ func chickenAnswer(s *dg.Session, i *dg.InteractionCreate) {
         chickenID = c.challengerid
     }
 
-    channelID, _ := s.UserChannelCreate(strconv.Itoa(chickenID))
-    s.ChannelMessageSend(channelID.ID, msgChicken)
+    channelID, _ := b.session.UserChannelCreate(strconv.Itoa(chickenID))
+    b.session.ChannelMessageSend(channelID.ID, msgChicken)
 
-    addCompInteractionResponse(s, i, UpdateMsg, msgAcceptor, []dg.MessageComponent{})
+    addCompInteractionResponse(b.session, i, UpdateMsg, msgAcceptor, []dg.MessageComponent{})
 }

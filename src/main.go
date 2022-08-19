@@ -24,7 +24,7 @@ const (
     CHECK_CHALL_INTERVAL    = "30m"
 )
 
-var DB database
+var DB dbInfo
 
 /*
  Main
@@ -33,21 +33,27 @@ var DB database
 func main() {
 	log.Print("Starting...")
 
-    bot := &botHolder{}
-
     // Load config
     config.WithOptions(config.ParseEnv)
     config.AddDriver(yaml.Driver)
     if err := config.LoadFiles(CONFIG_PATH); err != nil { panic(err) }
 
-    bot.token   = config.String("botToken")
-    bot.appID   = config.String("botToken")
-    bot.owner   = config.String("owner")
-    DB.host     = config.String("dbHost")
-    DB.user     = config.String("dbName")
-    DB.password = config.String("dbPass")
-    DB.name     = config.String("dbName")
-    DB.port     = config.Int("dbPort")
+    db := dbInfo{
+        host: config.String("dbHost"),
+        user: config.String("dbName"),
+        password: config.String("dbPass"),
+        name: config.String("dbName"),
+        port: config.Int("dbPort"),
+    }
+
+    DB = db
+
+    bot := &botHolder{
+        token: config.String("botToken"),
+        appID: config.String("appID"),
+        owner: config.String("owner"),
+        db: connectDBonce(db),
+    }
 
 	// Initialize and start the bot
 	bot.Init()

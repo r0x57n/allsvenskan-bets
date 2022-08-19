@@ -5,7 +5,6 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: hjälp
 func (b *botHolder) helpCommand(i *dg.InteractionCreate) {
     isOwner := getInteractUID(i) == b.owner
 
@@ -19,7 +18,7 @@ func (b *botHolder) helpCommand(i *dg.InteractionCreate) {
     bettingCmds := ""
     listingCmds := ""
 
-    for _, cmd := range COMMANDS {
+    for _, cmd := range b.commands {
         switch cmd.category {
             case CommandCategoryAdmin:
                 adminCmds += fmt.Sprintf("/%v - %v\n", cmd.name, cmd.description)

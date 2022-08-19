@@ -10,32 +10,28 @@ import (
 )
 
 func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-    s := b.session
-
     uid := getInteractUID(i)
 
-    allBets := *getBets(db, "uid=$1 AND status=$2", uid, BetStatusUnhandled)
+    allBets := *getBets(b.db, "uid=$1 AND status=$2", uid, BetStatusUnhandled)
 
     labels := make(map[int]string)
     dates := make(map[int]string)
 
     var regrettableBets []bet
 
-    for _, b := range allBets {
-        m := getMatch(db, "id=$1", b.matchid)
+    for _, bet := range allBets {
+        m := getMatch(b.db, "id=$1", bet.matchid)
         matchDate, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 
         if time.Now().Before(matchDate) {
-            labels[b.id] = fmt.Sprintf("%v vs %v [%v-%v]", m.hometeam, m.awayteam, b.homescore, b.awayscore)
-            dates[b.id] = matchDate.Format(MSG_TIME_LAYOUT)
-            regrettableBets = append(regrettableBets, b)
+            labels[bet.id] = fmt.Sprintf("%v vs %v [%v-%v]", m.hometeam, m.awayteam, bet.homescore, bet.awayscore)
+            dates[bet.id] = matchDate.Format(MSG_TIME_LAYOUT)
+            regrettableBets = append(regrettableBets, bet)
         }
     }
 
     if len(regrettableBets) == 0 {
-        addInteractionResponse(s, i, NewMsg, "Inga framtida vadslagningar...")
+        addInteractionResponse(b.session, i, NewMsg, "Inga framtida vadslagningar...")
         return
     }
 
@@ -54,45 +50,42 @@ func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj en vadslagning",
-                    CustomID: "regretSelected",
+                    CustomID: RegretSelected,
                     Options: options,
                 },
             },
         },
     }
 
-    addCompInteractionResponse(s, i, NewMsg, "Dina vadslagningar", components)
+    addCompInteractionResponse(b.session, i, NewMsg, "Dina vadslagningar", components)
 }
 
-func regretSelected(s *dg.Session, i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
-    values := getValuesOrRespond(s, i, UpdateMsg)
+func (b *botHolder) regretSelected(i *dg.InteractionCreate) {
+    values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
     bid := values[0]
 
     var m match
-    var b bet
-    err := db.QueryRow("SELECT m.date, b.uid FROM bets AS b " +
+    var bet bet
+    err := b.db.QueryRow("SELECT m.date, b.uid FROM bets AS b " +
                        "JOIN matches AS m ON b.matchid=m.id " +
-                       "WHERE b.id=$1", bid).Scan(&m.date, &b.uid)
+                       "WHERE b.id=$1", bid).Scan(&m.date, &bet.uid)
     if err != nil { log.Panic(err) }
 
     components := []dg.MessageComponent {}
     msg := ""
 
-    if matchHasBegun(s, i, m) {
+    if matchHasBegun(b.session, i, m) {
         msg = "Kan inte ta bort en vadslagning om en pågående match..."
     } else {
-        if strconv.Itoa(b.uid) != getInteractUID(i) {
-            addErrorResponse(s, i, UpdateMsg, "Du försökte ta bort någon annans vadslagning...")
+        if strconv.Itoa(bet.uid) != getInteractUID(i) {
+            addErrorResponse(b.session, i, UpdateMsg, "Du försökte ta bort någon annans vadslagning...")
             return
         }
 
-        _, err = db.Exec("DELETE FROM bets WHERE id=$1", bid)
+        _, err = b.db.Exec("DELETE FROM bets WHERE id=$1", bid)
         msg = "Vadslagning borttagen!"
     }
 
-    addCompInteractionResponse(s, i, UpdateMsg, msg, components)
+    addCompInteractionResponse(b.session, i, UpdateMsg, msg, components)
 }

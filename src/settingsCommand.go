@@ -6,14 +6,9 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-// Command: inställningar
 func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-    s := b.session
-
     uid := getInteractUID(i)
-    u := getUser(db, uid)
+    u := getUser(b.db, uid)
 
     defOption := true
     if !u.viewable {
@@ -70,7 +65,7 @@ func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: "settingsVisibility",
+                    CustomID: SettingsVisibility,
                     Options: visibilityOptions,
                 },
             },
@@ -93,7 +88,7 @@ func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    CustomID: "settingsChall",
+                    CustomID: SettingsChall,
                     Options: interactableOptions,
                 },
             },
@@ -101,35 +96,29 @@ func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
     }
 
     msg := "Inställningar för ditt konto."
-    addCompInteractionResponse(s, i, NewMsg, msg, components)
+    addCompInteractionResponse(b.session, i, NewMsg, msg, components)
 }
 
-func settingsVisibility(s *dg.Session, i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
-    vals := getValuesOrRespond(s, i, UpdateMsg)
+func (b *botHolder) settingsVisibility(i *dg.InteractionCreate) {
+    vals := getValuesOrRespond(b.session, i, UpdateMsg)
     if vals == nil { return }
 
     uid := getInteractUID(i)
 
-    _, err := db.Exec("UPDATE users SET viewable=$1 WHERE uid=$2", vals[0], uid)
+    _, err := b.db.Exec("UPDATE users SET viewable=$1 WHERE uid=$2", vals[0], uid)
     if err != nil { log.Panic(err) }
 
-    addNoInteractionResponse(s, i)
+    addNoInteractionResponse(b.session, i)
 }
 
-func settingsChall(s *dg.Session, i *dg.InteractionCreate) {
-    db := connectDB()
-    defer db.Close()
-
-    vals := getValuesOrRespond(s, i, UpdateMsg)
+func (b *botHolder) settingsChall(i *dg.InteractionCreate) {
+    vals := getValuesOrRespond(b.session, i, UpdateMsg)
     if vals == nil { return }
 
     uid := getInteractUID(i)
 
-    _, err := db.Exec("UPDATE users SET interactable=$1 WHERE uid=$2", vals[0], uid)
+    _, err := b.db.Exec("UPDATE users SET interactable=$1 WHERE uid=$2", vals[0], uid)
     if err != nil { log.Panic(err) }
 
-    addNoInteractionResponse(s, i)
+    addNoInteractionResponse(b.session, i)
 }

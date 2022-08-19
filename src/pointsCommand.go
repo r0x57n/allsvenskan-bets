@@ -8,14 +8,8 @@ import (
 	dg "github.com/bwmarrin/discordgo"
 )
 
-
-// Command: poäng
 func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
-    db := connectDB()
-	defer db.Close()
-    s := b.session
-
-	rows, err := db.Query("SELECT uid, points FROM users ORDER BY points DESC LIMIT 10")
+	rows, err := b.db.Query("SELECT uid, points FROM users ORDER BY points DESC LIMIT 10")
 	defer rows.Close()
 	if err != nil { log.Panic(err) }
 
@@ -29,7 +23,7 @@ func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
 		)
 
 		rows.Scan(&uid, &season)
-		user, _ := s.User(strconv.Itoa(uid))
+		user, _ := b.session.User(strconv.Itoa(uid))
         pos++
 
 		top10 += fmt.Sprintf("#%v **%v** med %v poäng\n", pos, user.Username, season)
@@ -39,7 +33,7 @@ func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
         top10 += "Inga spelare ännu!"
     }
 
-    user := getUserFromInteraction(db, i)
+    user := getUserFromInteraction(b.db, i)
 	userPoints := fmt.Sprintf("Du har samlat ihop **%v** poäng i år!", user.points)
 
     fields := []*dg.MessageEmbedField {
@@ -49,5 +43,5 @@ func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
         },
     }
 
-    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Poäng", userPoints)
+    addEmbeddedInteractionResponse(b.session, i, NewMsg, fields, "Poäng", userPoints)
 }

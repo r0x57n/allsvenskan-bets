@@ -15,6 +15,7 @@ func (b *botHolder) updateCommand(i *dg.InteractionCreate) {
             Value: "all",
         },
     }
+
     cmds, _ := b.session.ApplicationCommands(b.appID, b.guildID)
 
     for _, cmd := range cmds {
@@ -30,7 +31,7 @@ func (b *botHolder) updateCommand(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj ett kommando att uppdatera",
-                    CustomID: "updateCommandDo",
+                    CustomID: UpdateCommandDo,
                     Options: options,
                 },
             },
@@ -51,7 +52,7 @@ func (b *botHolder) updateCommandDo(s *dg.Session, i *dg.InteractionCreate) {
     log.Printf("Updating commands...")
 
     // Update one or all commands
-    for _, c := range COMMANDS {
+    for _, c := range b.commands {
         cmd := dg.ApplicationCommand {
             Name: c.name,
             Description: c.description,

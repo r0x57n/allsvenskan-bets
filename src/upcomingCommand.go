@@ -12,16 +12,12 @@ import (
 
 // Command: kommande
 func (b *botHolder) upcomingCommand(i *dg.InteractionCreate) {
-    s := b.session
-    db := connectDB()
-	defer db.Close()
-
 	uid := getInteractUID(i)
 
-	betRows, err := db.Query("SELECT b.homescore, b.awayscore, m.hometeam, m.awayteam, m.date " +
-                             "FROM bets AS b " +
-                             "JOIN matches AS m ON b.matchid=m.id " +
-                             "WHERE b.uid=$1 AND b.status=$2", uid, BetStatusUnhandled)
+	betRows, err := b.db.Query("SELECT b.homescore, b.awayscore, m.hometeam, m.awayteam, m.date " +
+                               "FROM bets AS b " +
+                               "JOIN matches AS m ON b.matchid=m.id " +
+                               "WHERE b.uid=$1 AND b.status=$2", uid, BetStatusUnhandled)
 	defer betRows.Close()
     if err != nil { log.Panic(err) }
 
@@ -80,11 +76,11 @@ func (b *botHolder) upcomingCommand(i *dg.InteractionCreate) {
 	}
 
     challengesMsg := ""
-    rows, err := db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, " +
-                          "m.hometeam, m.awayteam " +
-                          "FROM challenges AS c " +
-                          "JOIN matches AS m ON c.matchid=m.id " +
-                          "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND c.status=$3", uid, uid, ChallengeStatusAccepted)
+    rows, err := b.db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, " +
+                            "m.hometeam, m.awayteam " +
+                            "FROM challenges AS c " +
+                            "JOIN matches AS m ON c.matchid=m.id " +
+                            "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND c.status=$3", uid, uid, ChallengeStatusAccepted)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 
@@ -107,9 +103,9 @@ func (b *botHolder) upcomingCommand(i *dg.InteractionCreate) {
 
     if len(challenges) != 0 {
         for _, c := range challenges {
-            challenger, err := s.User(strconv.Itoa(c.c.challengerid))
+            challenger, err := b.session.User(strconv.Itoa(c.c.challengerid))
             if err != nil { log.Panic(err) }
-            challengee, err := s.User(strconv.Itoa(c.c.challengeeid))
+            challengee, err := b.session.User(strconv.Itoa(c.c.challengeeid))
             if err != nil { log.Panic(err) }
 
             winOrLose := "vinner"
@@ -127,5 +123,5 @@ func (b *botHolder) upcomingCommand(i *dg.InteractionCreate) {
         })
     }
 
-    addEmbeddedInteractionResponse(s, i, NewMsg, fields, "Kommande vadslag", userBets)
+    addEmbeddedInteractionResponse(b.session, i, NewMsg, fields, "Kommande vadslag", userBets)
 }
