@@ -4,6 +4,14 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
+type CommandCategory string
+const (
+    CommandCategoryGeneral = "Allmänt"
+    CommandCategoryBetting = "Slå vad"
+    CommandCategoryListing = "Vadslagningar"
+    CommandCategoryAdmin   = "Admin"
+)
+
 type BetStatus int
 const (
     BetStatusUnhandled = iota

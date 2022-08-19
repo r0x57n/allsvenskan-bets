@@ -12,6 +12,8 @@ type botHolder struct {
     owner string
     session *dg.Session
     db *sql.DB
+    commandHandlers map[string]func(s *dg.Session, i *dg.InteractionCreate)
+    componentHandlers map[string]func(s *dg.Session, i *dg.InteractionCreate)
 }
 
 type database struct {

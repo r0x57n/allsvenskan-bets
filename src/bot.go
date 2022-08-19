@@ -17,7 +17,7 @@ func (b *botHolder) Init() {
     b.session = s
 
     // Add handlers for command/component
-    commandHandlers := map[string]func(s *dg.Session, i *dg.InteractionCreate) {
+    b.commandHandlers = map[string]func(s *dg.Session, i *dg.InteractionCreate) {
         // User commands
         "hjälp": func(s *dg.Session, i *dg.InteractionCreate)         {   b.helpCommand(i)               },
         "slåvad": func(s *dg.Session, i *dg.InteractionCreate)        {   b.betCommand(i)                },
@@ -39,6 +39,7 @@ func (b *botHolder) Init() {
 
     // Component handlers
     b.componentHandlers = map[string]func(s *dg.Session, i *dg.InteractionCreate) {
+        "betOnSelected": func(s *dg.Session, i *dg.InteractionCreate)           {   betOnSelected(s, i)   },
         "betScoreHome": func(s *dg.Session, i *dg.InteractionCreate)            {   betScoreComponent(s, i, Home)    },
         "betScoreAway": func(s *dg.Session, i *dg.InteractionCreate)            {   betScoreComponent(s, i, Away)    },
         "challSelectWinner": func(s *dg.Session, i *dg.InteractionCreate)       {   challSelectWinner(s, i)          },
@@ -47,8 +48,8 @@ func (b *botHolder) Init() {
         "challAcceptDiscardDo": func(s *dg.Session, i *dg.InteractionCreate)    {   challAcceptDiscardDo(s, i)       },
         "settingsVisibility": func(s *dg.Session, i *dg.InteractionCreate)      {   settingsVisibility(s, i)         },
         "settingsChall": func(s *dg.Session, i *dg.InteractionCreate)           {   settingsChall(s, i)              },
-        "updateCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   b.updateCommandDo(i)            },
-        "deleteCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   b.deleteCommandDo(i)            },
+        "updateCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   b.updateCommandDo(s, i)            },
+        "deleteCommandDo": func(s *dg.Session, i *dg.InteractionCreate)         {   b.deleteCommandDo(s, i)            },
         "regretSelected": func(s *dg.Session, i *dg.InteractionCreate)          {   regretSelected(s, i)             },
         "challAnswer": func(s *dg.Session, i *dg.InteractionCreate)             {   challAnswer(s, i)                },
         "chickenSelected": func(s *dg.Session, i *dg.InteractionCreate)         {   chickenSelected(s, i)            },
@@ -58,7 +59,7 @@ func (b *botHolder) Init() {
 	s.AddHandler(func(s *dg.Session, i *dg.InteractionCreate) {
 		switch i.Type {
 			case dg.InteractionApplicationCommand:
-				if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok { h(s, i) }
+				if h, ok := b.commandHandlers[i.ApplicationCommandData().Name]; ok { h(s, i) }
 			case dg.InteractionMessageComponent:
 				if h, ok := b.componentHandlers[i.MessageComponentData().CustomID]; ok { h(s, i) }
 		}
