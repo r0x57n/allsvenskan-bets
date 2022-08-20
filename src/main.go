@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"time"
+    "flag"
 	"os"
 	"os/signal"
 	"github.com/robfig/cron/v3"
@@ -25,12 +26,18 @@ const (
     UPDATE_MATCHES_INTERVAL = "2h"
 )
 
+var (
+    ADD_COMMANDS = flag.Bool("add", false, "Add all commands on startup.")
+)
+
 /*
  Main
 */
 
 func main() {
 	log.Print("Starting...")
+
+    flag.Parse()
 
     // Load config
     config.WithOptions(config.ParseEnv)

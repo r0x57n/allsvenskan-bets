@@ -75,6 +75,24 @@ func (b *botHolder) Init() {
         g, _ := s.Guild(s.State.Guilds[0].ID)
         log.Printf("In the following guild: %v", g.Name)
         b.allsvenskanGuildID = s.State.Guilds[0].ID
+
+        if *ADD_COMMANDS {
+            log.Printf("Adding commands...")
+            for _, c := range b.commands {
+                cmd := dg.ApplicationCommand {
+                    Name: c.name,
+                    Description: c.description,
+                    Options: c.options,
+                }
+
+                log.Printf("Adding: %v", c.name)
+                _, err := b.session.ApplicationCommandCreate(b.appID, b.guildID, &cmd)
+                if err != nil {
+                    log.Fatalf("Cannot create slash command %q, %v", cmd.Name, err)
+                }
+            }
+            log.Printf("Added all commands!")
+        }
     })
 }
 
