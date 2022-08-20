@@ -8,16 +8,20 @@ import (
 )
 
 func (b *botHolder) removeCommand(i *dg.InteractionCreate) {
-    if b.notOwner(getInteractUID(i)) { return }
+    if b.notOwnerRespond(i) { return }
 
-    options := []dg.SelectMenuOption{}
+    options := []dg.SelectMenuOption{
+        {
+            Label: "Alla",
+            Value: "all",
+        },
+    }
     cmds, _ := b.session.ApplicationCommands(b.appID, b.guildID)
 
     for _, cmd := range cmds {
         options = append(options, dg.SelectMenuOption{
             Label: cmd.Name,
             Value: cmd.ID,
-            Description: "",
         })
     }
 
@@ -37,11 +41,20 @@ func (b *botHolder) removeCommand(i *dg.InteractionCreate) {
 }
 
 func (b *botHolder) removeCommandDo(i *dg.InteractionCreate) {
-    if b.notOwner(getInteractUID(i)) { return }
+    if b.notOwnerRespond(i) { return }
 
     val := i.MessageComponentData().Values[0]
 
-    b.session.ApplicationCommandDelete(b.appID, b.guildID, val)
-    addInteractionResponse(b.session, i, NewMsg, fmt.Sprintf("Deleted: %v", val))
-    log.Printf("Deleted: %v", val)
+    if val == "all" {
+        cmds, _ := b.session.ApplicationCommands(b.appID, b.guildID)
+        for _, cmd := range cmds {
+            b.session.ApplicationCommandDelete(b.appID, b.guildID, cmd.ID)
+            log.Printf("Deleted: %v", cmd.ID)
+        }
+
+    } else {
+        b.session.ApplicationCommandDelete(b.appID, b.guildID, val)
+        addInteractionResponse(b.session, i, NewMsg, fmt.Sprintf("Deleted: %v", val))
+        log.Printf("Deleted: %v", val)
+    }
 }

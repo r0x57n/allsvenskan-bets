@@ -7,7 +7,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func (b *botHolder) checkUnhandledBets() {
+func (b *botHolder) checkUnhandledBets(interactive bool) {
 	today := time.Now().Format(DB_TIME_LAYOUT)
 
 	log.Printf("Checking unhandled bets...")
@@ -29,27 +29,37 @@ func (b *botHolder) checkUnhandledBets() {
 
 	if len(bets) == 0 {
 		log.Print("No bets to handle!")
-        b.messageOwner("No bets to handle!")
+
+        if interactive {
+            b.messageOwner("No bets to handle!")
+        }
 	} else {
 		log.Printf("%v bets today...", len(bets))
 
 		// Handle bets for each match individually
 		for bet, m := range bets {
             if m.homescore == bet.homescore && m.awayscore == bet.awayscore {
-                b.addPoints(bet, 1, BetStatusWon)
+                b.addPoints(bet, 1, BetStatusWon, interactive)
             } else {
-                b.addPoints(bet, 0, BetStatusLost)
+                b.addPoints(bet, 0, BetStatusLost, interactive)
             }
 
 		}
 
 		log.Printf("%v bets handled!", len(bets))
-        b.messageOwner(fmt.Sprintf("%v bets handled!", len(bets)))
+
+        if interactive {
+            b.messageOwner(fmt.Sprintf("%v bets handled!", len(bets)))
+        }
 	}
 }
 
-func (b *botHolder) addPoints(bet bet, points int, status BetStatus) {
+func (b *botHolder) addPoints(bet bet, points int, status BetStatus, interactive bool) {
     log.Printf("Awarding %v point to %v", points, bet.uid)
+
+    if interactive {
+            b.messageOwner(fmt.Sprintf("Awarding %v points to %v", points, bet.uid))
+    }
 
     _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", points, bet.uid)
     if err != nil { log.Panic(err) }

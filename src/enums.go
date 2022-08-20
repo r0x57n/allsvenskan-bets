@@ -88,6 +88,7 @@ const (
     RemoveCommand       = "remove"
     CheckCommand        = "checkbets"
     UpdateCommand       = "update"
+    SummaryAllCommand   = "sammanfattaallt"
 )
 
 type CommandCategory string

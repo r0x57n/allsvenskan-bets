@@ -34,10 +34,11 @@ func (b *botHolder) Init() {
         SummaryCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.summaryCommand(i)     },
 
         // Admin commands
-        RefreshCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.refreshCommand(i)      },
+        RefreshCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.refreshCommand(i)     },
         RemoveCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.removeCommand(i)      },
         CheckCommand:       func(s *dg.Session, i *dg.InteractionCreate) {    b.checkBetsCommand(i)   },
         UpdateCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.updateCommand(i)      },
+        SummaryAllCommand:  func(s *dg.Session, i *dg.InteractionCreate) {    b.summaryAllCommand(i)  },
     }
 
     // Component handlers
@@ -55,7 +56,7 @@ func (b *botHolder) Init() {
         RefreshCommandDo:     func(s *dg.Session, i *dg.InteractionCreate) {   b.refreshCommandDo(i)           },
         RemoveCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.removeCommandDo(i)            },
         RegretSelected:       func(s *dg.Session, i *dg.InteractionCreate) {   b.regretSelected(i)             },
-        ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenChallengeSelected(i)            },
+        ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenChallengeSelected(i)   },
         ChickenAnswer:        func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenAnswer(i)              },
     }
 
@@ -71,6 +72,9 @@ func (b *botHolder) Init() {
     // Handler to tell us when we logged in
     s.AddHandler(func(s *dg.Session, r *dg.Ready) {
         log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+        g, _ := s.Guild(s.State.Guilds[0].ID)
+        log.Printf("In the following guild: %v", g.Name)
+        b.allsvenskanGuildID = s.State.Guilds[0].ID
     })
 }
 
@@ -86,8 +90,11 @@ func (b *botHolder) Close() {
     b.db.Close()
 }
 
-func (b *botHolder) notOwner(uid string) bool {
-    if b.owner != uid { return true }
+func (b *botHolder) notOwnerRespond(i *dg.InteractionCreate) bool {
+    if b.owner != getInteractUID(i) {
+        addInteractionResponse(b.session, i, NewMsg, "Saknar behörighet.")
+        return true
+    }
     return false
 }
 
@@ -225,6 +232,12 @@ func (b *botHolder) addCommands() {
         {
             name: UpdateCommand,
             description: "Uppdaterar matcher manuellt.",
+            category: CommandCategoryAdmin,
+            admin: true,
+        },
+        {
+            name: SummaryAllCommand,
+            description: "Sammanfattar senaste omgången till #bets",
             category: CommandCategoryAdmin,
             admin: true,
         },

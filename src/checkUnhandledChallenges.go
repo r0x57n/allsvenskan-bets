@@ -7,7 +7,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func (b *botHolder) checkUnhandledChallenges() {
+func (b *botHolder) checkUnhandledChallenges(interactive bool) {
 	today := time.Now().Format(DB_TIME_LAYOUT)
 
 	log.Printf("Checking unhandled challenges...")
@@ -32,7 +32,10 @@ func (b *botHolder) checkUnhandledChallenges() {
 
 	if len(challenges) == 0 {
 		log.Print("No challenges to handle!")
-        b.messageOwner("No challenges to handle!")
+
+        if interactive {
+            b.messageOwner("No challenges to handle!")
+        }
 	} else {
 		log.Printf("%v challenges today...", len(challenges))
 
@@ -58,18 +61,23 @@ func (b *botHolder) checkUnhandledChallenges() {
                     }
                 }
 
-                b.addPointsChallenge(winnerUID, c)
+                b.addPointsChallenge(winnerUID, c, interactive)
             }
 		}
 
-        b.messageOwner(fmt.Sprintf("%v challenges handled!", len(challenges)))
 		log.Printf("%v challenges handled!", len(challenges))
+        if interactive {
+            b.messageOwner(fmt.Sprintf("%v challenges handled!", len(challenges)))
+        }
 	}
 }
 
-func (b *botHolder) addPointsChallenge(winner int, c challenge) {
+func (b *botHolder) addPointsChallenge(winner int, c challenge, interactive bool) {
     if winner == -1 {
-        log.Printf("Game ended in a tie, giving back points...")
+        log.Printf("Game ended (%v - %v) in a tie, giving back points...", c.challengerid, c.challengeeid)
+        if interactive {
+            b.messageOwner(fmt.Sprintf("Game ended (%v - %v) in a tie, giving back points...", c.challengerid, c.challengeeid))
+        }
 
         _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengerid)
         if err != nil { log.Panic(err) }
@@ -77,6 +85,9 @@ func (b *botHolder) addPointsChallenge(winner int, c challenge) {
         if err != nil { log.Panic(err) }
     } else {
         log.Printf("Awarding %v point to %v", c.points, winner)
+        if interactive {
+            b.messageOwner(fmt.Sprintf("Awarding %v point to %v", c.points, winner))
+        }
 
         _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, winner)
         if err != nil { log.Panic(err) }

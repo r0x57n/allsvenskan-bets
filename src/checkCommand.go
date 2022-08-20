@@ -5,9 +5,9 @@ import (
 )
 
 func (b *botHolder) checkBetsCommand(i *dg.InteractionCreate) {
-    if b.notOwner(getInteractUID(i)) { return }
+    if b.notOwnerRespond(i) { return }
 
     addInteractionResponse(b.session, i, NewMsg, "Checking bets...")
-    b.checkUnhandledBets()
-    b.checkUnhandledChallenges()
+    b.checkUnhandledBets(true)
+    b.checkUnhandledChallenges(true)
 }

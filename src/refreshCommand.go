@@ -7,7 +7,7 @@ import (
 )
 
 func (b *botHolder) refreshCommand(i *dg.InteractionCreate) {
-    if b.notOwner(getInteractUID(i)) { return }
+    if b.notOwnerRespond(i) { return }
 
     options := []dg.SelectMenuOption{
         {
@@ -22,7 +22,6 @@ func (b *botHolder) refreshCommand(i *dg.InteractionCreate) {
         options = append(options, dg.SelectMenuOption{
             Label: cmd.Name,
             Value: cmd.Name,
-            Description: "",
         })
     }
 
@@ -42,7 +41,7 @@ func (b *botHolder) refreshCommand(i *dg.InteractionCreate) {
 }
 
 func (b *botHolder) refreshCommandDo(i *dg.InteractionCreate) {
-    if b.notOwner(getInteractUID(i)) { return }
+    if b.notOwnerRespond(i) { return }
 
     components := []dg.MessageComponent {}
     addCompInteractionResponse(b.session, i, dg.InteractionResponseChannelMessageWithSource, "Uppdaterar kommandon...", components)

@@ -417,7 +417,7 @@ func addErrorsResponse(s *dg.Session,
                 msg += "- Användaren tillåter inte utmaningar.\n"
             case ErrorSelfNotInteractable:
                 msg += "- Du måste själv tillåta utmaningar (se /installningar).\n"
-            case ErrorChallengeSelf:
+            case ErrorInteractingWithSelf:
                 msg += "- Du kan inte utmana dig själv.\n"
             case ErrorMaxChallenges:
                 msg += "- Du kan inte ha mer än 25 utmaningar.\n"

@@ -5,7 +5,7 @@ import (
 )
 
 func (b *botHolder) updateCommand(i *dg.InteractionCreate) {
-    if b.notOwner(getInteractUID(i)) { return }
+    if b.notOwnerRespond(i) { return }
 
     addInteractionResponse(b.session, i, NewMsg, "Börjar uppdatera...")
 

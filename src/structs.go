@@ -9,6 +9,7 @@ type botHolder struct {
     token string
     appID string
     guildID string
+    allsvenskanGuildID string
     owner string
     updaterPath string
     session *dg.Session
