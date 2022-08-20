@@ -144,6 +144,18 @@ func getMatch(db *sql.DB, where string, args ...any) match {
     return m
 }
 
+func getBetsFromRows(rows *sql.Rows) *[]bet {
+    var bets []bet
+
+	for rows.Next() {
+        var b bet
+		if err := rows.Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status, &b.round); err != nil { log.Panic(err) }
+		bets = append(bets, b)
+	}
+
+    return &bets
+}
+
 func getBets(db *sql.DB, where string, args ...any) *[]bet {
     var bets []bet
 

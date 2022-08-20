@@ -3,13 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
+    "time"
 	"strconv"
 	dg "github.com/bwmarrin/discordgo"
 	_ "github.com/lib/pq"
 )
 
 func (b *botHolder) matchCommand(i *dg.InteractionCreate) {
-
     rows, err := b.db.Query("SELECT m.id, m.hometeam, m.awayteam, m.date, m.homescore, m.awayscore, m.finished " +
                             "FROM matches AS m " +
                             "WHERE round=$1", getCurrentRound(b.db))
@@ -39,12 +39,22 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
     mid := vals[0]
     m := getMatch(b.db, "id=$1", mid)
 
-    //datetime, _ := time.Parse(DB_TIME_LAYOUT, m.date)
+    datetime, _ := time.Parse(DB_TIME_LAYOUT, m.date)
 
-    matchInfo := fmt.Sprintf("%v - %v, slutade %v - %v\n", m.hometeam, m.awayteam, m.homescore, m.awayscore)
+    matchInfo := ""
+    if m.finished {
+        matchInfo = fmt.Sprintf("%v - %v, slutade %v - %v\n", m.hometeam, m.awayteam, m.homescore, m.awayscore)
+    } else {
+        matchInfo = fmt.Sprintf("%v - %v, spelas %v", m.hometeam, m.awayteam, datetime)
+    }
 
     // all bets
-    bets := *getBets(b.db, "matchid=$1", mid)
+    betRows, err := b.db.Query("SELECT b.id, b.uid, b.matchid, b.homescore, b.awayscore, b.status, b.round " +
+                               "FROM bets AS b " +
+                               "JOIN users AS u ON u.uid=b.uid " +
+                               "WHERE b.matchid=$1 AND u.viewable=$2", m.id, true)
+    if err != nil { log.Panic(err) }
+    bets := *getBetsFromRows(betRows)
 
     msgBets := ""
     if len(bets) == 0 {
@@ -60,7 +70,11 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
             username = user.Username
         }
 
-        msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.homescore, bet.awayscore)
+        if m.finished {
+            msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.homescore, bet.awayscore)
+        } else {
+            msgBets += fmt.Sprintf("%v gissar på %v - %v\n", username, bet.homescore, bet.awayscore)
+        }
     }
 
     // all challenges
@@ -96,8 +110,13 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
             winner = m.awayteam
         }
 
-        msgChalls += fmt.Sprintf("%v utmanade %v om att %v skulle vinna\n",
-                                 usernameChallenger, usernameChallengee, winner)
+        if m.finished {
+            msgChalls += fmt.Sprintf("%v utmanade %v om att %v skulle vinna för %v poäng\n",
+                                    usernameChallenger, usernameChallengee, winner, c.points)
+        } else {
+            msgChalls += fmt.Sprintf("%v utmanar %v om att %v ska vinna för %v poäng\n",
+                                    usernameChallenger, usernameChallengee, winner, c.points)
+        }
     }
 
     fields := []*dg.MessageEmbedField {
