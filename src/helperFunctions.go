@@ -398,3 +398,41 @@ func addErrorResponse(s *dg.Session,
         msg += "Timestamp: \n" + time.Now().Format(DB_TIME_LAYOUT)
         addCompInteractionResponse(s, i, typ, msg + optional[0], []dg.MessageComponent {})
 }
+
+func addErrorsResponse(s *dg.Session,
+                       i *dg.InteractionCreate,
+                       typ dg.InteractionResponseType,
+                       errors []CommandError,
+                       add string) {
+    msg := ""
+    msg += add + "\n"
+
+    for _, e := range errors {
+        switch (e) {
+            case ErrorNoRights:
+                msg += "- Inga rättigheter att köra kommandot.\n"
+            case ErrorMatchStarted:
+                msg += "- Matchen har redan startat.\n"
+            case ErrorOtherNotInteractable:
+                msg += "- Användaren tillåter inte utmaningar.\n"
+            case ErrorSelfNotInteractable:
+                msg += "- Du måste själv tillåta utmaningar (se /installningar).\n"
+            case ErrorChallengeSelf:
+                msg += "- Du kan inte utmana dig själv.\n"
+            case ErrorMaxChallenges:
+                msg += "- Du kan inte ha mer än 25 utmaningar.\n"
+            case ErrorNoMatches:
+                msg += "- Det finns inga matcher vad slå om.\n"
+            case ErrorIdenticalChallenge:
+                msg += "- Du kan inte utmana samma spelare om samma sak igen.\n"
+            case ErrorNotEnoughPoints:
+                msg += "- Du eller den utmanade har inte nog med poäng.\n"
+            case ErrorChallengeHandled:
+                msg += "- Utmaningen har redan blivit hanterad.\n"
+            default:
+                log.Printf("Unknown error code in makeErrorsResponse: %v", e)
+        }
+    }
+
+    addCompInteractionResponse(s, i, typ, msg, []dg.MessageComponent {})
+}

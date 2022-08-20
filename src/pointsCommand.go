@@ -22,11 +22,18 @@ func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
 			season int
 		)
 
+        username := ""
 		rows.Scan(&uid, &season)
-		user, _ := b.session.User(strconv.Itoa(uid))
+		user, err := b.session.User(strconv.Itoa(uid))
+        if err != nil {
+            username = strconv.Itoa(uid)
+        } else {
+            username = user.Username
+        }
+
         pos++
 
-		top10 += fmt.Sprintf("#%v **%v** med %v poäng\n", pos, user.Username, season)
+		top10 += fmt.Sprintf("#%v **%v** med %v poäng\n", pos, username, season)
 	}
 
     if top10 == "" {

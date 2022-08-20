@@ -55,7 +55,7 @@ func (b *botHolder) Init() {
         RefreshCommandDo:     func(s *dg.Session, i *dg.InteractionCreate) {   b.refreshCommandDo(i)           },
         RemoveCommandDo:      func(s *dg.Session, i *dg.InteractionCreate) {   b.removeCommandDo(i)            },
         RegretSelected:       func(s *dg.Session, i *dg.InteractionCreate) {   b.regretSelected(i)             },
-        ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenSelected(i)            },
+        ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenChallengeSelected(i)            },
         ChickenAnswer:        func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenAnswer(i)              },
     }
 
@@ -183,13 +183,13 @@ func (b *botHolder) addCommands() {
         },
         {
             name: SummaryCommand,
-            description: "Sammanfatta denna omgång till #bets.",
+            description: "Visa en sammanfattning om en viss omgång.",
             category: CommandCategoryListing,
             options: []*dg.ApplicationCommandOption {
                 {
                     Type: dg.ApplicationCommandOptionInteger,
                     Name: "omgång",
-                    Description: "Vilken omgång att sammanfatta",
+                    Description: "Vilken omgång att sammanfatta.",
                     Required: true,
                 },
             },

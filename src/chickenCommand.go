@@ -3,6 +3,7 @@ package main
 import (
     "log"
     "fmt"
+    "time"
     "strings"
     "strconv"
     _ "github.com/lib/pq"
@@ -11,9 +12,27 @@ import (
 
 func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
     uid := getInteractUID(i)
-    challenges := *getChallenges(b.db, "(challengerid=$1 OR challengeeid=$2) " +
-                                       "AND (status=$3 OR status=$4)",
-                                        uid, uid, ChallengeStatusSent, ChallengeStatusAccepted)
+
+    now := time.Now().Format(DB_TIME_LAYOUT)
+    rows, err := b.db.Query("SELECT c.id, c.challengerid, c.challengeeid, c.type, c.matchid, c.points, c.condition, c.status " +
+                            "FROM challenges AS c " +
+                            "JOIN matches AS m ON m.id=c.matchid " +
+                            "WHERE m.date>=$1 AND " +
+                            "((c.challengerid=$2 OR c.challengeeid=$3) " +
+                            "OR (c.challengeeid=$4 OR c.challengerid=$5)) " +
+                            "AND (c.status=$6 OR c.status=$7)",
+                            now, uid, uid, uid, uid, ChallengeStatusSent, ChallengeStatusAccepted)
+    if err != nil { log.Panic(err) }
+
+    var challenges []challenge
+    for rows.Next() {
+        var c challenge
+
+        err := rows.Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status)
+        if err != nil { log.Panic(err) }
+
+        challenges = append(challenges, c)
+    }
 
     if len(challenges) == 0 {
         addInteractionResponse(b.session, i, NewMsg, "Inga utmaningar gjorda!")
@@ -67,7 +86,7 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
         dg.ActionsRow {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
-                    Placeholder: "Välj en match",
+                    Placeholder: "Välj en utmaning",
                     CustomID: ChickenSelected,
                     Options: options,
                 },
@@ -78,13 +97,14 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, NewMsg, "Dina utmaningar.", components)
 }
 
-func (b *botHolder) chickenSelected(i *dg.InteractionCreate) {
+func (b *botHolder) chickenChallengeSelected(i *dg.InteractionCreate) {
     interactionUID, _ := strconv.Atoi(getInteractUID(i))
     vals := getValuesOrRespond(b.session, i, UpdateMsg)
     if vals == nil { return }
 
     cid := vals[0]
     c := getChallenge(b.db, "id=$1", cid)
+    m := getMatch(b.db, "id=$1", c.matchid)
 
     contactID := c.challengerid
     requesterIsChallenger := interactionUID == c.challengerid;
@@ -92,7 +112,23 @@ func (b *botHolder) chickenSelected(i *dg.InteractionCreate) {
         contactID = c.challengeeid
     }
 
-    // Creates a DM channel (or fetches the one existing)
+    // Security checks
+    errors := []CommandError{}
+
+    if (c.challengerid != interactionUID && c.challengeeid != interactionUID) {
+        errors = append(errors, ErrorNoRights)
+    }
+
+    if m.date <= time.Now().Format(DB_TIME_LAYOUT) {
+        errors = append(errors, ErrorMatchStarted)
+    }
+
+    if len(errors) != 0 {
+        addErrorsResponse(b.session, i, UpdateMsg, errors, "Kunde inte fega ur för utmaningen.")
+        return
+    }
+
+    // Creates a DM channel (or fetches the existing one)
     channelID, _ := b.session.UserChannelCreate(strconv.Itoa(contactID))
 
     components := []dg.MessageComponent {
@@ -117,7 +153,6 @@ func (b *botHolder) chickenSelected(i *dg.InteractionCreate) {
     }
 
     user, _ := b.session.User(getInteractUID(i))
-    m := getMatch(b.db, "id=$1", c.matchid)
     msg := fmt.Sprintf("**%v** vill avbryta om **%v** vs **%v** för **%v** poäng, vad vill du göra?",
                         user.Username, m.hometeam, m.awayteam, c.points)
 
@@ -160,7 +195,26 @@ func (b *botHolder) chickenAnswer(i *dg.InteractionCreate) {
     cid := splitted[1]
 
     c := getChallenge(b.db, "id=$1", cid)
+    m := getMatch(b.db, "id=$1", c.matchid)
 
+    // Security checks
+    errors := []CommandError{}
+
+    interactionUID, _ := strconv.Atoi(getInteractUID(i))
+    if (c.challengerid != interactionUID && c.challengeeid != interactionUID) {
+        errors = append(errors, ErrorNoRights)
+    }
+
+    if m.date <= time.Now().Format(DB_TIME_LAYOUT) {
+        errors = append(errors, ErrorMatchStarted)
+    }
+
+    if len(errors) != 0 {
+        addErrorsResponse(b.session, i, UpdateMsg, errors, "Kunde slutföra förfrågan.")
+        return
+    }
+
+    // Do things
     msgChicken := ""
     msgAcceptor := ""
     if answer == "accept" {
