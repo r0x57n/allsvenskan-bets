@@ -1,13 +1,27 @@
 * allsvenskanBet
 
-This is a bot for Discord that handles server-local bets regarding the matches in Swedish football league [[https://en.wikipedia.org/wiki/Allsvenskan][Allsvenskan]].
-
-** Commands
-...
+A Discord bot created for the Swedish football league [[https://en.wikipedia.org/wiki/Allsvenskan][Allsvenskan]]. It primarily handles bets/challenges on/between matches/users on a guild (server). It's not built to handle multiple guilds currently. The only known running version exists on the officially unofficial Allsvenskan discord.
 
 ** Permissions
 Scopes: bot, applications.commands
 Bot permissions: Send Messages
 
 ** Layout
-Currently the main bot is located in main.go. The bigger commands are divided into __Cmd.go files. The interval stuff (e.g. checking betting results) is stored inside of intervalChecking.go.
+Every command has its own file, e.x. for the /refresh command, see ./src/refreshCommand.go. The bot connects to a postgres database where everything is stored. A configuration file named config.yml is expected to exist on the top-level of the bot.
+
+** config.yml
+Example config.
+
+#+NAME: config.yml
+#+BEGIN_SRC
+dbHost: localhost
+dbPort: 5432
+dbName: bot
+dbUser: bot
+dbPass: password
+appID: 12341234
+botToken: boTtoKen
+owner: 12341234
+guildID: ""
+updaterPath: "../updater/"
+#+END_SRC

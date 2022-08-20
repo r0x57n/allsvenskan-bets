@@ -32,6 +32,7 @@ func (b *botHolder) Init() {
         SettingsCommand:    func(s *dg.Session, i *dg.InteractionCreate) {    b.settingsCommand(i)    },
         InfoCommand:        func(s *dg.Session, i *dg.InteractionCreate) {    b.infoCommand(i)        },
         SummaryCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.summaryCommand(i)     },
+        MatchCommand:       func(s *dg.Session, i *dg.InteractionCreate) {    b.matchCommand(i)       },
 
         // Admin commands
         RefreshCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.refreshCommand(i)     },
@@ -58,6 +59,7 @@ func (b *botHolder) Init() {
         RegretSelected:       func(s *dg.Session, i *dg.InteractionCreate) {   b.regretSelected(i)             },
         ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenChallengeSelected(i)   },
         ChickenAnswer:        func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenAnswer(i)              },
+        MatchSendInfo:        func(s *dg.Session, i *dg.InteractionCreate) {   b.matchSendInfo(i)              },
     }
 
     s.AddHandler(func(s *dg.Session, i *dg.InteractionCreate) {
@@ -218,6 +220,11 @@ func (b *botHolder) addCommands() {
                     Required: true,
                 },
             },
+        },
+        {
+            name: MatchCommand,
+            description: "Visa bets/utmaningar för en viss match.",
+            category: CommandCategoryListing,
         },
         {
             name: SettingsCommand,

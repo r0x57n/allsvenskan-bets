@@ -9,8 +9,16 @@ import (
 )
 
 func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
-    round := getCurrentRound(b.db) - 1
+    options := getOptionsOrRespond(b.session, i, NewMsg)
+    if options == nil { return }
+
+    round, _ := strconv.Atoi(fmt.Sprint(options[0].Value))
     matches := *getMatches(b.db, "round=$1", round)
+
+    if round > getCurrentRound(b.db) {
+        addInteractionResponse(b.session, i, NewMsg, "Kan inte sammanfatta en omgång som inte spelats.")
+        return
+    }
 
     var (
         totalWon = 0

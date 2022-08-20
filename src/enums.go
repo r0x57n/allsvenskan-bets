@@ -89,6 +89,7 @@ const (
     CheckCommand        = "checkbets"
     UpdateCommand       = "update"
     SummaryAllCommand   = "sammanfattaallt"
+    MatchCommand        = "match"
 )
 
 type CommandCategory string
@@ -116,4 +117,5 @@ const (
     ChallAnswer = "challAnswer"
     ChickenSelected = "chickenSelected"
     ChickenAnswer = "chickenAnswer"
+    MatchSendInfo = "matchSendInfo"
 )

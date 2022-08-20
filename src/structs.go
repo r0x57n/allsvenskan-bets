@@ -45,6 +45,7 @@ type bet struct {
 	homescore int
 	awayscore int
     status BetStatus
+    round int
 }
 
 type challenge struct {
