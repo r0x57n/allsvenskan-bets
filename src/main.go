@@ -46,7 +46,7 @@ func main() {
 
     dbinfo := dbInfo{
         host: config.String("dbHost"),
-        user: config.String("dbName"),
+        user: config.String("dbUser"),
         password: config.String("dbPass"),
         name: config.String("dbName"),
         port: config.Int("dbPort"),
