@@ -60,7 +60,7 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
             username = user.Username
         }
 
-        msgBets += fmt.Sprintf("%v gissade på %v - %v", username, bet.homescore, bet.awayscore)
+        msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.homescore, bet.awayscore)
     }
 
     // all challenges
