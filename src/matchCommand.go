@@ -130,10 +130,10 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
         },
     }
 
-	if err := b.session.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-		Type: UpdateMsg,
-		Data: &dg.InteractionResponseData {
-			Flags: 1 << 6, // Ephemeral
+    if err := b.session.InteractionRespond(i.Interaction, &dg.InteractionResponse {
+        Type: UpdateMsg,
+        Data: &dg.InteractionResponseData {
+            Flags: 1 << 6, // Ephemeral
             Components: []dg.MessageComponent{},
             Embeds: []*dg.MessageEmbed {
                 {
@@ -143,6 +143,6 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
                 },
             },
 
-		},
-	}); err != nil { log.Panic(err) }
+        },
+    }); err != nil { log.Panic(err) }
 }

@@ -11,7 +11,45 @@ import (
 func (b *botHolder) summaryAllCommand(i *dg.InteractionCreate) {
     if b.notOwnerRespond(i) { return }
 
-    round := getCurrentRound(b.db) - 1
+    iOptions := getOptionsOrRespond(b.session, i, NewMsg)
+    if iOptions == nil { return }
+
+    title := ""
+
+    options := []dg.SelectMenuOption{}
+    if iOptions[0].Value == "0" { // omgång
+        if len(iOptions) > 2 {
+            round := iOptions[1].Value
+            b.summaryRoundDo(i, fmt.Sprint(round))
+        } else {
+            addInteractionResponse(b.session, i, NewMsg, "välj en omgång å")
+            return
+        }
+    } else { // match
+        rows, err := b.db.Query("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished " +
+                                "FROM matches " +
+                                "WHERE round=$1", getCurrentRound(b.db))
+        if err != nil { log.Panic(err) }
+        options = *getOptionsOutOfRows(rows)
+        title = "Sammanfatta en match."
+    }
+
+    components := []dg.MessageComponent {
+        dg.ActionsRow {
+            Components: []dg.MessageComponent {
+                dg.SelectMenu {
+                    Placeholder: "Välj en match",
+                    CustomID: "summaryMatchDo", // component handler
+                    Options: options,
+                },
+            },
+        },
+    }
+
+    addCompInteractionResponse(b.session, i, NewMsg, title, components)
+}
+
+func (b *botHolder) summaryRoundDo(i *dg.InteractionCreate, round string) {
     matches := *getMatches(b.db, "round=$1", round)
 
     addInteractionResponse(b.session, i, NewMsg, "Sammanfattar...")
@@ -114,4 +152,8 @@ func (b *botHolder) summaryAllCommand(i *dg.InteractionCreate) {
             },
         },
     })
+}
+
+func (b *botHolder) summaryMatchDo(i *dg.InteractionCreate) {
+
 }

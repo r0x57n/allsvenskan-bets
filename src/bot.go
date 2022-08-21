@@ -281,6 +281,11 @@ func (b *botHolder) addCommands() {
                         },
                     },
                 },
+                {
+                    Type: dg.ApplicationCommandOptionInteger,
+                    Name: "omgång",
+                    Description: "Vad ska sammanfattas?",
+                },
             },
         },
     }
