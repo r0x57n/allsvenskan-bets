@@ -31,6 +31,7 @@ const (
     ErrorNoRights = iota
     ErrorMatchStarted
     ErrorOtherNotInteractable
+    ErrorUserNotViewable
     ErrorSelfNotInteractable
     ErrorInteractingWithSelf
     ErrorMaxChallenges
@@ -74,7 +75,7 @@ const (
 type CommandName string
 const (
     HelpCommand         = "hjälp"
-    BetCommand          = "slåvad"
+    BetCommand          = "gissa"
     RegretCommand       = "ångra"
     ChallengeCommand    = "utmana"
     ChickenCommand      = "fegaur"
@@ -95,8 +96,8 @@ const (
 type CommandCategory string
 const (
     CommandCategoryGeneral = "Allmänt"
-    CommandCategoryBetting = "Slå vad"
-    CommandCategoryListing = "Vadslagningar"
+    CommandCategoryBetting = "Vadslagningar"
+    CommandCategoryListing = "Statistik"
     CommandCategoryAdmin   = "Admin"
 )
 

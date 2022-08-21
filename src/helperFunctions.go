@@ -489,6 +489,8 @@ func addErrorsResponse(s *dg.Session,
                 msg += "- Du eller den utmanade har inte nog med poäng.\n"
             case ErrorChallengeHandled:
                 msg += "- Utmaningen har redan blivit hanterad.\n"
+            case ErrorUserNotViewable:
+                msg += "- Användaren har valt att dölja sina vadslagningar."
             default:
                 log.Printf("Unknown error code in makeErrorsResponse: %v", e)
         }

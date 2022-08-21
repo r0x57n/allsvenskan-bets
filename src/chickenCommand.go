@@ -112,7 +112,7 @@ func (b *botHolder) chickenChallengeSelected(i *dg.InteractionCreate) {
         contactID = c.challengeeid
     }
 
-    // Security checks
+    // Error checking
     errors := []CommandError{}
 
     if (c.challengerid != interactionUID && c.challengeeid != interactionUID) {

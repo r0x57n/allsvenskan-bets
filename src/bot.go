@@ -132,17 +132,17 @@ func (b *botHolder) addCommands() {
         },
         {
             name: BetCommand,
-            description: "Slå vad om en kommande match.",
+            description: "Gör en gissning över slutresultatet för en kommande match.",
             category: CommandCategoryBetting,
         },
         {
             name: RegretCommand,
-            description: "Ångra ett vad du har lagt.",
+            description: "Ångra en gissning du har gjort.",
             category: CommandCategoryBetting,
         },
         {
             name: ChallengeCommand,
-            description: "Utmana en annan användare.",
+            description: "Utmana en annan användare om en kommande match.",
             category: CommandCategoryBetting,
             options: []*dg.ApplicationCommandOption {
                 {
@@ -167,17 +167,17 @@ func (b *botHolder) addCommands() {
         },
         {
             name: ChickenCommand,
-            description: "Be om att få fega ur en utmaning.",
+            description: "Skapa en förfrågan om att stoppa en utmaning.",
             category: CommandCategoryBetting,
         },
         {
             name: UpcomingCommand,
-            description: "Lista dina kommande vadslagningar.",
+            description: "Lista dina kommande gissningar/utmaningar.",
             category: CommandCategoryListing,
         },
         {
             name: BetsCommand,
-            description: "Lista en annan användares tidigare vadslagningar.",
+            description: "Lista en användares tidigare gissningar/utmaningar.",
             category: CommandCategoryListing,
             options: []*dg.ApplicationCommandOption {
                 {

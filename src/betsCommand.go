@@ -2,6 +2,8 @@ package main
 
 import (
     "fmt"
+    "math"
+    "time"
     "strconv"
     "log"
     _ "github.com/lib/pq"
@@ -20,15 +22,20 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     }
 
     desc := ""
-
     userToView := getUser(b.db, fmt.Sprint(uid))
     userNotViewingThemselves := userToView.uid != getUserFromInteraction(b.db, i).uid
+
+    // Error checking
+    errors := []CommandError{}
     if !userToView.viewable && userNotViewingThemselves {
-        desc := "Användaren har valt att dölja sina vadslagningar."
-        addInteractionResponse(b.session, i, NewMsg, desc)
-        return
+        errors = append(errors, ErrorUserNotViewable)
     } else if !userToView.viewable && !userNotViewingThemselves {
         desc = "Andra användare kan inte se dina vadslagningar."
+    }
+
+    if len(errors) != 0 {
+        addErrorsResponse(b.session , i, NewMsg, errors, "Kan inte visa spelarens gissningar/utmaningar.")
+        return
     }
 
     where := ""
@@ -44,10 +51,39 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
             return
     }
 
-    rows, err := b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam " +
+    rows, err := b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam, m.date " +
                             "FROM bets AS b " +
                             "JOIN matches AS m ON b.matchid=m.id " +
-                            "WHERE " + where)
+                            "WHERE uid=$1 AND status=$2", uid, BetStatusUnhandled)
+    defer rows.Close()
+    if err != nil { log.Panic(err) }
+
+    comingBets := "-"
+    for rows.Next() {
+        var bet bet
+        var m match
+
+        rows.Scan(&bet.homescore, &bet.awayscore, &bet.matchid, &bet.status, &m.hometeam, &m.awayteam, &m.date)
+
+        matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
+        if err != nil { log.Printf("Couldn't parse date: %v", err) }
+        daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)
+        played := ""
+
+        if math.Signbit(daysUntilMatch) {
+            played = "spelas idag"
+        } else {
+            played = fmt.Sprintf("om %v dagar", daysUntilMatch)
+        }
+
+        if comingBets == "-" { comingBets = "" }
+        comingBets += fmt.Sprintf("%v (**%v**) - %v (**%v**), %v.\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore, played)
+    }
+
+    rows, err = b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam " +
+                           "FROM bets AS b " +
+                           "JOIN matches AS m ON b.matchid=m.id " +
+                           "WHERE " + where)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 
@@ -111,7 +147,7 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
         }
 
         if challenges == "-" { challenges = "" }
-        challenges += fmt.Sprintf("**%v** utmanade **%v** om att **%v** skulle %v mot **%v** för **%v** poäng\n",
+        challenges += fmt.Sprintf("**%v** utmanade **%v** om att **%v** skulle %v mot **%v** för **%v** poäng.\n",
                                     challenger.Username, challengee.Username, m.hometeam, winOrLose, m.awayteam, c.points)
     }
 
@@ -133,6 +169,10 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
         }
     } else {
         fields = []*dg.MessageEmbedField {
+            {
+                Name: "Kommande",
+                Value: comingBets,
+            },
             {
                 Name: "Vunna",
                 Value: wonBets,
