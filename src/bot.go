@@ -261,9 +261,27 @@ func (b *botHolder) addCommands() {
         },
         {
             name: SummaryAllCommand,
-            description: "Sammanfattar senaste omgången till #bets",
+            description: "Sammanfattar en omgång eller match till #bets",
             category: CommandCategoryAdmin,
             admin: true,
+            options: []*dg.ApplicationCommandOption {
+                {
+                    Type: dg.ApplicationCommandOptionString,
+                    Name: "sort",
+                    Description: "Vad ska sammanfattas?",
+                    Required: true,
+                    Choices: []*dg.ApplicationCommandOptionChoice {
+                        {
+                            Name: "omgång",
+                            Value: "0",
+                        },
+                        {
+                            Name: "match",
+                            Value: "1",
+                        },
+                    },
+                },
+            },
         },
     }
 }

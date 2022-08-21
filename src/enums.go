@@ -76,7 +76,7 @@ const (
     PointsCommand       = "poäng"
     SettingsCommand     = "inställningar"
     InfoCommand         = "info"
-    SummaryCommand      = "sammanfattning"
+    SummaryCommand      = "omgång"
     RefreshCommand      = "add"
     RemoveCommand       = "remove"
     CheckCommand        = "checkbets"
