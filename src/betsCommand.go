@@ -16,7 +16,7 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     if options == nil { return }
     uid := options[0].Value
 
-    listTypes := All
+    listTypes := -1
     if len(options) == 2 {
         listTypes, _ = strconv.Atoi(fmt.Sprintf("%v", options[1].Value))
     }
@@ -40,79 +40,59 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
 
     where := ""
     switch listTypes {
-        case Lost:
+        case BetStatusLost:
             where = fmt.Sprintf("uid=%v AND status=%v", uid, BetStatusWon)
-        case Won:
+        case BetStatusWon:
             where = fmt.Sprintf("uid=%v AND status=%v", uid, BetStatusLost)
-        case All:
-            where = fmt.Sprintf("uid=%v AND (status=%v OR status=%v)", uid, BetStatusWon, BetStatusLost)
-        default:
-            addErrorResponse(b.session, i, NewMsg, "Got unidentifiable listTypes in listBetsCommand.")
-            return
+        case BetStatusUnhandled:
+            where = fmt.Sprintf("uid=%v AND status=%v", uid, BetStatusUnhandled)
+        default: // all
+            where = fmt.Sprintf("uid=%v AND (status=%v OR status=%v OR status=%v)", uid, BetStatusWon, BetStatusLost, BetStatusUnhandled)
     }
 
     rows, err := b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam, m.date " +
-                            "FROM bets AS b " +
-                            "JOIN matches AS m ON b.matchid=m.id " +
-                            "WHERE uid=$1 AND status=$2", uid, BetStatusUnhandled)
-    defer rows.Close()
-    if err != nil { log.Panic(err) }
-
-    comingBets := "-"
-    for rows.Next() {
-        var bet bet
-        var m match
-
-        rows.Scan(&bet.homescore, &bet.awayscore, &bet.matchid, &bet.status, &m.hometeam, &m.awayteam, &m.date)
-
-        matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
-        if err != nil { log.Printf("Couldn't parse date: %v", err) }
-        daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)
-        played := ""
-
-        if math.Signbit(daysUntilMatch) {
-            played = "spelas idag"
-        } else {
-            played = fmt.Sprintf("om %v dagar", daysUntilMatch)
-        }
-
-        if comingBets == "-" { comingBets = "" }
-        comingBets += fmt.Sprintf("%v (**%v**) - %v (**%v**), %v.\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore, played)
-    }
-
-    rows, err = b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam " +
                            "FROM bets AS b " +
                            "JOIN matches AS m ON b.matchid=m.id " +
                            "WHERE " + where)
     defer rows.Close()
     if err != nil { log.Panic(err) }
 
-    wonBets, lostBets := "-", "-"
+    comingBets, wonBets, lostBets := "", "", ""
 
     for rows.Next() {
         var bet bet
         var m match
 
-        rows.Scan(&bet.homescore, &bet.awayscore, &bet.matchid, &bet.status, &m.hometeam, &m.awayteam)
+        rows.Scan(&bet.homescore, &bet.awayscore, &bet.matchid, &bet.status, &m.hometeam, &m.awayteam, &m.date)
 
         switch bet.status {
             case BetStatusLost:
-                if lostBets == "-" { lostBets = "" }
-                lostBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore)
+                lostBets += fmt.Sprintf("%v (**%v**) - %v (**%v**).\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore)
             case BetStatusWon:
-                if wonBets == "-" { wonBets = "" }
-                wonBets += fmt.Sprintf("%v (**%v**) - %v (**%v**)\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore)
+                wonBets += fmt.Sprintf("%v (**%v**) - %v (**%v**).\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore)
             case BetStatusUnhandled:
-                continue
+                matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
+                if err != nil { log.Printf("Couldn't parse date: %v", err) }
+                daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)
+                played := ""
+
+                if math.Signbit(daysUntilMatch) {
+                    played = "spelas nu"
+                } else if daysUntilMatch == 0 {
+                    played = "spelas idag"
+                } else {
+                    played = fmt.Sprintf("om %v dagar", daysUntilMatch)
+                }
+                comingBets += fmt.Sprintf("%v (**%v**) - %v (**%v**), %v.\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore, played)
             default:
                 addErrorResponse(b.session, i, NewMsg, "Got unidentifiable b.status in listBetsCommand.")
                 return
         }
     }
 
-    if wonBets == "-" && lostBets == "-" {
-        desc = fmt.Sprintf("Användaren har inga vadslagningar ännu!", )
-    }
+    if comingBets == "" { comingBets = "-" }
+    if lostBets == "" { lostBets = "-" }
+    if wonBets == "" { wonBets = "-" }
 
     rows, err = b.db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, " +
                            "m.hometeam, m.awayteam " +
@@ -153,35 +133,37 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
 
     fields := []*dg.MessageEmbedField {}
 
-    if listTypes == 0 {
-        fields = []*dg.MessageEmbedField {
-            {
+    switch (listTypes) {
+        case BetStatusLost:
+            fields = append(fields, &dg.MessageEmbedField{
                 Name: "Förlorade",
                 Value: lostBets,
-            },
-        }
-    } else if listTypes == 1 {
-        fields = []*dg.MessageEmbedField {
-            {
+            })
+        case BetStatusWon:
+            fields = append(fields, &dg.MessageEmbedField{
                 Name: "Vunna",
                 Value: wonBets,
-            },
-        }
-    } else {
-        fields = []*dg.MessageEmbedField {
-            {
+            })
+        case BetStatusUnhandled:
+            fields = append(fields, &dg.MessageEmbedField{
                 Name: "Kommande",
                 Value: comingBets,
-            },
-            {
-                Name: "Vunna",
-                Value: wonBets,
-            },
-            {
-                Name: "Förlorade",
-                Value: lostBets,
-            },
-        }
+            })
+        default:
+            fields = []*dg.MessageEmbedField {
+                {
+                    Name: "Kommande",
+                    Value: comingBets,
+                },
+                {
+                    Name: "Vunna",
+                    Value: wonBets,
+                },
+                {
+                    Name: "Förlorade",
+                    Value: lostBets,
+                },
+            }
     }
 
     fields = append(fields, &dg.MessageEmbedField{

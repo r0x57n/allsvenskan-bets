@@ -48,13 +48,6 @@ const (
     BetStatusLost
 )
 
-type BetType int
-const (
-    Lost = iota
-    Won
-    All
-)
-
 type BetLocation int
 const (
     Home = iota
@@ -79,17 +72,16 @@ const (
     RegretCommand       = "ångra"
     ChallengeCommand    = "utmana"
     ChickenCommand      = "fegaur"
-    UpcomingCommand     = "kommande"
-    BetsCommand         = "vadslagningar"
+    BetsCommand         = "vad"
     PointsCommand       = "poäng"
     SettingsCommand     = "inställningar"
     InfoCommand         = "info"
-    SummaryCommand      = "sammanfatta"
-    RefreshCommand      = "refresh"
+    SummaryCommand      = "sammanfattning"
+    RefreshCommand      = "add"
     RemoveCommand       = "remove"
     CheckCommand        = "checkbets"
     UpdateCommand       = "update"
-    SummaryAllCommand   = "sammanfattaallt"
+    SummaryAllCommand   = "sammanfatta"
     MatchCommand        = "match"
 )
 
@@ -103,20 +95,20 @@ const (
 
 type ComponentName string
 const (
-    BetSelectScore = "betOnSelected"
-    BetUpdateScoreHome = "betScoreHome"
-    BetUpdateScoreAway = "betScoreAway"
-    ChallSelectWinner = "challSelectWinner"
-    ChallSelectPoints = "challSelectPoints"
-    ChallAcceptDiscard = "challAcceptDiscard"
-    ChallAcceptDiscardDo = "challAcceptDiscardDo"
-    SettingsVisibility = "settingsVisibility"
-    SettingsChall = "settingsChall"
-    RefreshCommandDo = "updateCommandDo"
-    RemoveCommandDo = "deleteCommandDo"
-    RegretSelected = "regretSelected"
-    ChallAnswer = "challAnswer"
-    ChickenSelected = "chickenSelected"
-    ChickenAnswer = "chickenAnswer"
-    MatchSendInfo = "matchSendInfo"
+    BetSelectScore          = "betOnSelected"
+    BetUpdateScoreHome      = "betScoreHome"
+    BetUpdateScoreAway      = "betScoreAway"
+    ChallSelectWinner       = "challSelectWinner"
+    ChallSelectPoints       = "challSelectPoints"
+    ChallAcceptDiscard      = "challAcceptDiscard"
+    ChallAcceptDiscardDo    = "challAcceptDiscardDo"
+    SettingsVisibility      = "settingsVisibility"
+    SettingsChall           = "settingsChall"
+    RefreshCommandDo        = "updateCommandDo"
+    RemoveCommandDo         = "deleteCommandDo"
+    RegretSelected          = "regretSelected"
+    ChallAnswer             = "challAnswer"
+    ChickenSelected         = "chickenSelected"
+    ChickenAnswer           = "chickenAnswer"
+    MatchSendInfo           = "matchSendInfo"
 )

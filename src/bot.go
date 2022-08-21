@@ -2,6 +2,7 @@ package main
 
 import (
     "log"
+    "strconv"
     dg "github.com/bwmarrin/discordgo"
 )
 
@@ -26,7 +27,6 @@ func (b *botHolder) Init() {
         RegretCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.regretCommand(i)      },
         ChallengeCommand:   func(s *dg.Session, i *dg.InteractionCreate) {    b.challengeCommand(i)   },
         ChickenCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.chickenCommand(i)     },
-        UpcomingCommand:    func(s *dg.Session, i *dg.InteractionCreate) {    b.upcomingCommand(i)    },
         BetsCommand:        func(s *dg.Session, i *dg.InteractionCreate) {    b.listBetsCommand(i)    },
         PointsCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.pointsCommand(i)      },
         SettingsCommand:    func(s *dg.Session, i *dg.InteractionCreate) {    b.settingsCommand(i)    },
@@ -153,12 +153,12 @@ func (b *botHolder) addCommands() {
                 },
                 {
                     Type: dg.ApplicationCommandOptionString,
-                    Name: "typ",
+                    Name: "sort",
                     Description: "Vilken sorts utmaning?",
                     Required: true,
                     Choices: []*dg.ApplicationCommandOptionChoice {
                         {
-                            Name: "Matchvinnare",
+                            Name: "vinnare",
                             Value: "matchvinnare",
                         },
                     },
@@ -171,13 +171,8 @@ func (b *botHolder) addCommands() {
             category: CommandCategoryBetting,
         },
         {
-            name: UpcomingCommand,
-            description: "Lista dina kommande gissningar/utmaningar.",
-            category: CommandCategoryListing,
-        },
-        {
             name: BetsCommand,
-            description: "Lista en användares tidigare gissningar/utmaningar.",
+            description: "Lista en användares gissningar/utmaningar.",
             category: CommandCategoryListing,
             options: []*dg.ApplicationCommandOption {
                 {
@@ -188,16 +183,20 @@ func (b *botHolder) addCommands() {
                 },
                 {
                     Type: dg.ApplicationCommandOptionString,
-                    Name: "typ",
-                    Description: "Vill du enbart visa en viss typ av vad?",
+                    Name: "sort",
+                    Description: "Lista bara korrekta/inkorrekta/kommande.",
                     Choices: []*dg.ApplicationCommandOptionChoice {
                         {
-                            Name: "Korrekta",
-                            Value: "1",
+                            Name: "vunna",
+                            Value: strconv.Itoa(BetStatusWon),
                         },
                         {
-                            Name: "Inkorrekta",
-                            Value: "0",
+                            Name: "förlorade",
+                            Value: strconv.Itoa(BetStatusLost),
+                        },
+                        {
+                            Name: "kommande",
+                            Value: strconv.Itoa(BetStatusUnhandled),
                         },
                     },
                 },
@@ -210,7 +209,7 @@ func (b *botHolder) addCommands() {
         },
         {
             name: SummaryCommand,
-            description: "Visa en sammanfattning om en viss omgång.",
+            description: "Visa en sammanfattning av en omgång.",
             category: CommandCategoryListing,
             options: []*dg.ApplicationCommandOption {
                 {

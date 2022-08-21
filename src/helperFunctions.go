@@ -232,7 +232,7 @@ func getChallenge(db *sql.DB, where string, args ...any) challenge {
    Helpers for select menus
 */
 
-func getOptionsOutOfRows(rows *sql.Rows) *[]dg.SelectMenuOption {
+func getOptionsOutOfRows(rows *sql.Rows, addToValue ...string) *[]dg.SelectMenuOption {
     options := []dg.SelectMenuOption{}
 
     matches := *getMatchesFromRows(rows)
@@ -283,21 +283,29 @@ func getCurrentMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMe
 	}
 
     for _, m := range matches {
+        label := fmt.Sprintf("%v vs %v", m.hometeam, m.awayteam)
+
+        // option value (adding metadata)
         optionValue := strconv.Itoa(m.id)
 
-        // adding meta data to value
         if len(addToValue) == 1 {
             optionValue = addToValue[0] + "_" + optionValue
         }
 
+        // option description
         matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
         if err != nil { log.Printf("Couldn't parse date: %v", err) }
 
         daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)
 
-        label := fmt.Sprintf("%v vs %v", m.hometeam, m.awayteam)
-        description := fmt.Sprintf("om %v dagar (%v)", daysUntilMatch, matchDate.Format(MSG_TIME_LAYOUT))
+        description := ""
+        if daysUntilMatch == 0 {
+            description = fmt.Sprintf("idag (%v)", matchDate.Format(MSG_TIME_LAYOUT))
+        } else {
+            description = fmt.Sprintf("om %v dagar (%v)", daysUntilMatch, matchDate.Format(MSG_TIME_LAYOUT))
+        }
 
+        // add it together
         options = append(options, dg.SelectMenuOption{
             Label: label,
             Value: optionValue,
