@@ -1,11 +1,14 @@
 package main
 
 import (
+    "database/sql"
+    "encoding/json"
     "fmt"
     "log"
     "strconv"
-    _ "github.com/lib/pq"
+    "time"
     dg "github.com/bwmarrin/discordgo"
+    _ "github.com/lib/pq"
 )
 
 func (b *botHolder) summaryAllCommand(i *dg.InteractionCreate) {
@@ -60,7 +63,22 @@ func (b *botHolder) summaryAllCommand(i *dg.InteractionCreate) {
 func (b *botHolder) summaryRoundDo(i *dg.InteractionCreate, round string) {
     matches := *getMatches(b.db, "round=$1", round)
 
-    addInteractionResponse(b.session, i, NewMsg, "Sammanfattar...")
+    summarised := true
+    var earlier []byte
+    err := b.db.QueryRow("SELECT data FROM summaries WHERE round=$1 AND year=$2", round, time.Now().Year()).Scan(&earlier)
+    if err != nil {
+        if err != sql.ErrNoRows {
+            log.Panic(err)
+        } else {
+            summarised = false
+            addInteractionResponse(b.session, i, NewMsg, "Sammanfattar...")
+        }
+    }
+
+    if summarised {
+        b.summaryRoundSend(round)
+        return
+    }
 
     var (
         totalWon = 0
@@ -95,41 +113,80 @@ func (b *botHolder) summaryRoundDo(i *dg.InteractionCreate, round string) {
     rows, err := b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 10", round, BetStatusWon)
     if err != nil { log.Panic(err) }
 
-    topFive := ""
-    placement := 1
+    topFive := make(map[string]int)
     for rows.Next() {
         uid, count := 0, 0
         rows.Scan(&uid, &count)
         user, _ := b.session.User(strconv.Itoa(uid))
-        topFive += fmt.Sprintf("#%v - %v med **%v** vinster\n", placement, user.Username, count)
-        placement++
-    }
-
-    if topFive == "" {
-        topFive = "Ingen vann något denna omgång."
+        topFive[user.Username] = count
     }
 
     // Bottom 5 list
     rows, err = b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 10", round, BetStatusLost)
     if err != nil { log.Panic(err) }
 
-    bottomFive := ""
-    placement = 1
+    bottomFive := make(map[string]int)
     for rows.Next() {
         uid, count := 0, 0
         rows.Scan(&uid, &count)
         user, _ := b.session.User(strconv.Itoa(uid))
-        bottomFive += fmt.Sprintf("#%v - %v med **%v** förluster\n", placement, user.Username, count)
+        bottomFive[user.Username] = count
+    }
+
+    roundJson := Round{
+        Num: round,
+        NumMatches: len(matches),
+        NumBets: len(allBets),
+        NumWins: totalWon,
+        NumLoss: totalLost,
+        TopFive: topFive,
+        BotFive: bottomFive,
+    }
+
+    json, _ := json.Marshal(roundJson)
+
+    _, err = b.db.Exec("INSERT INTO summaries(data, round, year) VALUES ($1, $2, $3)", json, round, time.Now().Year())
+    if err != nil { log.Panic(err) }
+
+    b.summaryRoundSend(round)
+}
+
+func (b *botHolder) summaryRoundSend(round string) {
+    var jsonD []byte
+    err := b.db.QueryRow("SELECT data FROM summaries WHERE round=$1 AND year=$2", round, time.Now().Year()).Scan(&jsonD)
+    if err != nil { log.Panic(err) }
+
+    var roundData Round
+    json.Unmarshal(jsonD, &roundData)
+
+    topFive := ""
+    placement := 1
+    for user, wins := range roundData.TopFive {
+        topFive += fmt.Sprintf("#%v - %v med **%v** vinster\n", placement, user, wins)
         placement++
     }
 
-    if bottomFive == "" {
-        bottomFive = "Ingen förlorade något denna omgång."
+    bottomFive := ""
+    placement = 1
+    for user, losses := range roundData.BotFive {
+        bottomFive += fmt.Sprintf("#%v - %v med **%v** förluster\n", placement, user, losses)
+        placement++
     }
 
-    // Add it all together
-    title := fmt.Sprintf("Omgång %v är färdigspelad!", round)
-    msg := fmt.Sprintf("**%v** matcher spelades och **%v** vadslagningar (v: %v, f: %v) las. ", len(matches), len(allBets), totalWon, totalLost)
+    if topFive == "" {
+        topFive = "-"
+    }
+
+    if bottomFive == "" {
+        bottomFive = "-"
+    }
+
+    title := fmt.Sprintf("Sammanfattning av omgång %v", roundData.Num)
+
+    msg := fmt.Sprintf("**%v** matcher spelades och **%v** vadslagningar las.\n",
+                       roundData.NumMatches, roundData.NumBets)
+    msg += fmt.Sprintf("Av dessa var **%v** vinster och **%v** förluster.",
+                       roundData.NumWins, roundData.NumLoss)
 
     fields := []*dg.MessageEmbedField {
         {
@@ -179,7 +236,7 @@ func (b *botHolder) summaryMatchDo(i *dg.InteractionCreate) {
     matchInfo := ""
     if m.finished {
         matchInfo = fmt.Sprintf("%v - %v\n", m.hometeam, m.awayteam)
-        matchInfo += fmt.Sprintf("Resultat: %v - %v\n", m.homescore, m.awayscore)
+        matchInfo += fmt.Sprintf("Resultat: %v - %v\n\n", m.homescore, m.awayscore)
     }
 
     // all bets
@@ -205,7 +262,13 @@ func (b *botHolder) summaryMatchDo(i *dg.InteractionCreate) {
         }
 
         if m.finished {
-            msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.homescore, bet.awayscore)
+            won := bet.homescore == m.homescore && bet.awayscore == m.awayscore
+
+            if won {
+                msgBets += fmt.Sprintf("**%v gissade på %v - %v**\n", username, bet.homescore, bet.awayscore)
+            } else {
+                msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.homescore, bet.awayscore)
+            }
         } else {
             msgBets += fmt.Sprintf("%v gissar på %v - %v\n", username, bet.homescore, bet.awayscore)
         }
