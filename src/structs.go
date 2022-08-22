@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/robfig/cron/v3"
 	"database/sql"
 	dg "github.com/bwmarrin/discordgo"
 )
@@ -14,6 +15,7 @@ type botHolder struct {
     updaterPath string
     session *dg.Session
     db *sql.DB
+    cron *cron.Cron
     commands []command
     commandHandlers map[string]func(s *dg.Session, i *dg.InteractionCreate)
     componentHandlers map[string]func(s *dg.Session, i *dg.InteractionCreate)

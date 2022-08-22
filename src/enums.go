@@ -46,6 +46,7 @@ const (
     BetStatusUnhandled = iota
     BetStatusWon
     BetStatusLost
+    BetStatusAlmostWon
 )
 
 type BetLocation int

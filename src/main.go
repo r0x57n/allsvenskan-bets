@@ -78,20 +78,20 @@ func main() {
 	defer bot.Close()
 
     // Interval checking stuff
-    c := cron.New()
+    bot.cron = cron.New()
     if CHECK_BETS_INTERVAL != "" {
-        c.AddFunc("@every " + CHECK_BETS_INTERVAL, func() { bot.checkUnhandledBets(false) })
+        bot.cron.AddFunc("@every " + CHECK_BETS_INTERVAL, func() { bot.checkUnhandledBets(false) })
         log.Printf("Checking bets every %v", CHECK_BETS_INTERVAL)
     }
     if CHECK_CHALL_INTERVAL != "" {
-        c.AddFunc("@every " + CHECK_CHALL_INTERVAL, func() { bot.checkUnhandledChallenges(false) })
+        bot.cron.AddFunc("@every " + CHECK_CHALL_INTERVAL, func() { bot.checkUnhandledChallenges(false) })
         log.Printf("Checking challenges every %v", CHECK_CHALL_INTERVAL)
     }
     if UPDATE_MATCHES_INTERVAL != "" {
-        c.AddFunc("@every " + UPDATE_MATCHES_INTERVAL, func(){ bot.updateMatches(false) })
+        bot.cron.AddFunc("@every " + UPDATE_MATCHES_INTERVAL, func(){ bot.updateMatches(false) })
         log.Printf("Updating matches every %v", UPDATE_MATCHES_INTERVAL)
     }
-    c.Start()
+    bot.cron.Start()
 
 	// Stop signal to quit
 	stop := make(chan os.Signal, 1)
