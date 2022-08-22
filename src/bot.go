@@ -210,13 +210,13 @@ func (b *botHolder) addCommands() {
         },
         {
             name: SummaryCommand,
-            description: "Visa en sammanfattning av en omgång.",
+            description: "Visa en sammanfattning av en tidigare omgång.",
             category: CommandCategoryListing,
             options: []*dg.ApplicationCommandOption {
                 {
                     Type: dg.ApplicationCommandOptionInteger,
                     Name: "omgång",
-                    Description: "Vilken omgång att sammanfatta.",
+                    Description: "Vilken omgång att sammanfatta (0 == nuvarande).",
                     Required: true,
                 },
             },
