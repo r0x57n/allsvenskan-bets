@@ -59,6 +59,16 @@ type challenge struct {
     status ChallengeStatus
 }
 
+type Round struct {
+    Num string `json:"num"`
+    NumMatches int `json:"numMatches"`
+    NumBets int `json:"numBets"`
+    NumWins int `json:"numWins"`
+    NumLoss int `json:"numLoss"`
+    TopFive map[string]int `json:"topFive"`
+    BotFive map[string]int `json:"botFive"`
+}
+
 type user struct {
     uid int
     points int
