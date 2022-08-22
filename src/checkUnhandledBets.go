@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"time"
+    "math"
 	_ "github.com/lib/pq"
 )
 
@@ -38,8 +39,13 @@ func (b *botHolder) checkUnhandledBets(interactive bool) {
 
 		// Handle bets for each match individually
 		for bet, m := range bets {
-            if m.homescore == bet.homescore && m.awayscore == bet.awayscore {
-                b.addPoints(bet, 1, BetStatusWon, interactive)
+            homeDiff := math.Abs(float64(bet.homescore - m.homescore))
+            awayDiff := math.Abs(float64(bet.awayscore - m.awayscore))
+
+            if homeDiff == 0 && awayDiff == 0 {
+                b.addPoints(bet, 3, BetStatusWon, interactive)
+            } else if (homeDiff == 1 && awayDiff == 0) || (homeDiff == 0 && awayDiff == 1) {
+                b.addPoints(bet, 1, BetStatusAlmostWon, interactive)
             } else {
                 b.addPoints(bet, 0, BetStatusLost, interactive)
             }
@@ -58,7 +64,7 @@ func (b *botHolder) addPoints(bet bet, points int, status BetStatus, interactive
     log.Printf("Awarding %v point to %v", points, bet.uid)
 
     if interactive {
-            b.messageOwner(fmt.Sprintf("Awarding %v points to %v", points, bet.uid))
+        b.messageOwner(fmt.Sprintf("Awarding %v points to %v", points, bet.uid))
     }
 
     _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", points, bet.uid)
