@@ -42,26 +42,25 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
 		// Handle bets for each match individually
 		for c, m := range challenges {
             if c.typ == ChallengeTypeWinner {
-                winnerUID := 0
                 homeWon := m.homescore > m.awayscore
 
                 if m.homescore == m.awayscore {
-                    winnerUID = -1
+                    c.winner = ChallengeWinnerNone
                 } else if homeWon {
                     if c.condition == ChallengeConditionWinnerHome {
-                        winnerUID = c.challengerid
+                        c.winner = ChallengeWinnerChallenger
                     } else {
-                        winnerUID = c.challengeeid
+                        c.winner = ChallengeWinnerChallengee
                     }
                 } else {
                     if c.condition == ChallengeConditionWinnerAway {
-                        winnerUID = c.challengerid
+                        c.winner = ChallengeWinnerChallenger
                     } else {
-                        winnerUID = c.challengeeid
+                        c.winner = ChallengeWinnerChallengee
                     }
                 }
 
-                b.addPointsChallenge(winnerUID, c, interactive)
+                b.addPointsChallenge(c, interactive)
             }
 		}
 
@@ -72,8 +71,10 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
 	}
 }
 
-func (b *botHolder) addPointsChallenge(winner int, c challenge, interactive bool) {
-    if winner == -1 {
+func (b *botHolder) addPointsChallenge(c challenge, interactive bool) {
+    winnerUID := 0
+
+    if c.winner == ChallengeWinnerNone {
         log.Printf("Game ended (%v - %v) in a tie, giving back points...", c.challengerid, c.challengeeid)
         if interactive {
             b.messageOwner(fmt.Sprintf("Game ended (%v - %v) in a tie, giving back points...", c.challengerid, c.challengeeid))
@@ -84,15 +85,23 @@ func (b *botHolder) addPointsChallenge(winner int, c challenge, interactive bool
         _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengeeid)
         if err != nil { log.Panic(err) }
     } else {
-        log.Printf("Awarding %v point to %v", c.points, winner)
-        if interactive {
-            b.messageOwner(fmt.Sprintf("Awarding %v point to %v", c.points, winner))
+        if c.winner == ChallengeWinnerChallenger {
+            winnerUID = c.challengerid
+        } else if c.winner == ChallengeWinnerChallengee {
+            winnerUID = c.challengeeid
+        } else {
+            log.Fatalf("Got %v as winnerUID when checking challenges.", winnerUID)
         }
 
-        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, winner)
+        log.Printf("Awarding %v point to %v", c.points, winnerUID)
+        if interactive {
+            b.messageOwner(fmt.Sprintf("Awarding %v points to %v", c.points, winnerUID))
+        }
+
+        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points*2, winnerUID)
         if err != nil { log.Panic(err) }
     }
 
-	_, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusHandled, c.id)
+	_, err := b.db.Exec("UPDATE challenges SET status=$1, winner=$2 WHERE id=$3", ChallengeStatusHandled, c.winner, c.id)
     if err != nil { log.Panic(err) }
 }

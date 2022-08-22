@@ -15,6 +15,14 @@ const (
     ChallengeStatusHandled
 )
 
+type ChallengeWinner int
+const (
+    ChallengeWinnerUndecided = iota
+    ChallengeWinnerChallenger
+    ChallengeWinnerChallengee
+    ChallengeWinnerNone
+)
+
 type ChallengeType int
 const (
     ChallengeTypeWinner = iota

@@ -59,6 +59,7 @@ type challenge struct {
     points int
     condition ChallengeCondition
     status ChallengeStatus
+    winner ChallengeWinner
 }
 
 type Round struct {
