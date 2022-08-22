@@ -109,7 +109,7 @@ func (b *botHolder) betSelectScore(i *dg.InteractionCreate) {
         },
     }
 
-    addCompInteractionResponse(b.session, i, UpdateMsg, msg, components)
+    addCompInteractionResponse(b.session, i, NewMsg, msg, components)
 }
 
 func (b *botHolder) betUpdateScore(i *dg.InteractionCreate, where BetLocation) {
