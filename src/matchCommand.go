@@ -72,7 +72,13 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
         }
 
         if m.finished {
-            msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.homescore, bet.awayscore)
+            won := bet.homescore == m.homescore && bet.awayscore == m.awayscore
+
+            if won {
+                msgBets += fmt.Sprintf("**%v gissade på %v - %v**\n", username, bet.homescore, bet.awayscore)
+            } else {
+                msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.homescore, bet.awayscore)
+            }
         } else {
             msgBets += fmt.Sprintf("%v gissar på %v - %v\n", username, bet.homescore, bet.awayscore)
         }
