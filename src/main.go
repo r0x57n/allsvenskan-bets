@@ -27,7 +27,8 @@ const (
 
 var (
     ADD_COMMANDS = flag.Bool("add", false, "Add all commands on startup.")
-    CONFIG_PATH = flag.String("config", "../config", "Path to config file.")
+    CONFIG_PATH = flag.String("c", "../config.yml", "Path to config file.")
+    LOG_TO_FILE = flag.Bool("l", false, "Log to file.")
 )
 
 /*
@@ -35,6 +36,16 @@ var (
 */
 
 func main() {
+    // Setup logging to file
+    if *LOG_TO_FILE {
+        f, err := os.OpenFile("log.txt", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+        if err != nil { log.Panic(err) }
+        defer f.Close()
+
+        log.SetOutput(f)
+    }
+
+    // Start running
 	log.Print("Starting...")
 
     flag.Parse()
