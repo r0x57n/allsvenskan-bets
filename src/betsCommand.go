@@ -96,11 +96,13 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     if lostBets == "" { lostBets = "-" }
     if wonBets == "" { wonBets = "-" }
 
-    rows, err = b.db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, " +
+    rows, err = b.db.Query("SELECT c.challengerid, c.challengeeid, c.points, c.condition, c.winner, " +
                            "m.hometeam, m.awayteam " +
                            "FROM challenges AS c " +
                            "JOIN matches AS m ON c.matchid=m.id " +
-                           "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND c.status=$3", uid, uid, ChallengeStatusHandled)
+                           "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND " +
+                           "(c.status=$3 OR c.status=$4)", uid, uid,
+                            ChallengeStatusAccepted, ChallengeStatusHandled)
     if err != nil { log.Panic(err) }
     defer rows.Close()
 
@@ -115,7 +117,7 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
         var c challenge
         var m match
 
-        rows.Scan(&c.challengerid, &c.challengeeid, &c.points, &c.condition,
+        rows.Scan(&c.challengerid, &c.challengeeid, &c.points, &c.condition, &c.winner,
                   &m.hometeam, &m.awayteam)
 
         challenger, err := b.session.User(strconv.Itoa(c.challengerid))
@@ -128,9 +130,26 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
             winOrLose = "förlora"
         }
 
-        if challenges == "-" { challenges = "" }
-        challenges += fmt.Sprintf("**%v** utmanade **%v** om att **%v** skulle %v mot **%v** för **%v** poäng.\n",
-                                    challenger.Username, challengee.Username, m.hometeam, winOrLose, m.awayteam, c.points)
+
+        winner := ""
+        if c.winner != 0 {
+            userIsChallenger := fmt.Sprint(getUserFromInteraction(b.db, i).uid) == challenger.ID
+
+            winner = "[+]"
+            if userIsChallenger && c.winner == ChallengeWinnerChallengee {
+                winner = "[-]"
+            } else if c.winner == ChallengeWinnerNone {
+                winner = "[/]"
+            }
+
+            if challenges == "-" { challenges = "" }
+            challenges += fmt.Sprintf("**%v** utmanade **%v** om att **%v** skulle %v mot **%v** för **%v** poäng. %v\n",
+                                        challenger.Username, challengee.Username, m.hometeam, winOrLose, m.awayteam, c.points, winner)
+        } else {
+            if comingBets == "-" { comingBets = "" }
+            comingBets += fmt.Sprintf("**%v** utmanar **%v** om att **%v** ska %v mot **%v** för **%v** poäng. %v\n",
+                                       challenger.Username, challengee.Username, m.hometeam, winOrLose, m.awayteam, c.points, winner)
+        }
     }
 
     fields := []*dg.MessageEmbedField {}
@@ -165,13 +184,12 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
                     Name: "Förlorade",
                     Value: lostBets,
                 },
+                {
+                    Name: "Utmaningar",
+                    Value: challenges,
+                },
             }
     }
-
-    fields = append(fields, &dg.MessageEmbedField{
-        Name: "Utmaningar",
-        Value: challenges,
-    })
 
     addEmbeddedInteractionResponse(b.session, i, NewMsg, fields, "Vadslagningar", desc)
 }
