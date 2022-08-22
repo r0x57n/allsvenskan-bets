@@ -53,7 +53,6 @@ func (b *botHolder) checkUnhandledBets(interactive bool) {
 		}
 
 		log.Printf("%v bets handled!", len(bets))
-
         if interactive {
             b.messageOwner(fmt.Sprintf("%v bets handled!", len(bets)))
         }

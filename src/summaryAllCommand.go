@@ -41,6 +41,7 @@ func (b *botHolder) summaryAllCommand(i *dg.InteractionCreate) {
                                 "FROM matches " +
                                 "WHERE round=$1", getCurrentRound(b.db))
         if err != nil { log.Panic(err) }
+        defer rows.Close()
         options = *getOptionsOutOfRows(rows)
         title = "Sammanfatta en match."
     }
@@ -112,6 +113,7 @@ func (b *botHolder) summaryRoundDo(i *dg.InteractionCreate, round string) {
 
     rows, err := b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 10", round, BetStatusWon)
     if err != nil { log.Panic(err) }
+    defer rows.Close()
 
     topFive := make(map[string]int)
     for rows.Next() {
@@ -124,6 +126,7 @@ func (b *botHolder) summaryRoundDo(i *dg.InteractionCreate, round string) {
     // Bottom 5 list
     rows, err = b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 10", round, BetStatusLost)
     if err != nil { log.Panic(err) }
+    defer rows.Close()
 
     bottomFive := make(map[string]int)
     for rows.Next() {
@@ -349,4 +352,7 @@ func (b *botHolder) summaryMatchDo(i *dg.InteractionCreate) {
             },
         },
     })
+
+    _, err = b.db.Exec("UPDATE matches SET summarised=$1 WHERE id=$2", true, m.id)
+    if err != nil { log.Panic(err) }
 }

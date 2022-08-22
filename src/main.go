@@ -16,12 +16,11 @@ import (
 */
 
 const (
-    VERSION                 = "1.2.0" // major.minor.patch
+    VERSION                 = "1.3.0" // major.minor.patch
 	DB_TYPE                 = "postgres"
 	DB_TIME_LAYOUT          = time.RFC3339
     MSG_TIME_LAYOUT         = "2006-01-02 kl. 15:04"
     CHECK_BETS_INTERVAL     = "30m"
-    CHECK_CHALL_INTERVAL    = "30m"
     UPDATE_MATCHES_INTERVAL = "2h"
 )
 
@@ -80,12 +79,8 @@ func main() {
     // Interval checking stuff
     bot.cron = cron.New()
     if CHECK_BETS_INTERVAL != "" {
-        bot.cron.AddFunc("@every " + CHECK_BETS_INTERVAL, func() { bot.checkUnhandledBets(false) })
-        log.Printf("Checking bets every %v", CHECK_BETS_INTERVAL)
-    }
-    if CHECK_CHALL_INTERVAL != "" {
-        bot.cron.AddFunc("@every " + CHECK_CHALL_INTERVAL, func() { bot.checkUnhandledChallenges(false) })
-        log.Printf("Checking challenges every %v", CHECK_CHALL_INTERVAL)
+        bot.cron.AddFunc("@every " + CHECK_BETS_INTERVAL, func() { bot.checkStuff(false) })
+        log.Printf("Checking bets/challenges/sumaries every %v", CHECK_BETS_INTERVAL)
     }
     if UPDATE_MATCHES_INTERVAL != "" {
         bot.cron.AddFunc("@every " + UPDATE_MATCHES_INTERVAL, func(){ bot.updateMatches(false) })

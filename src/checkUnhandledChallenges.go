@@ -14,7 +14,7 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
 
     // Fetch all unhandled bets for matches in the past
     rows, err := b.db.Query("SELECT c.id, c.challengerid, c.challengeeid, c.type, c.matchid, c.points, c.condition, c.status, " +
-                            "m.homescore, m.awayscore " +
+                            "m.id, m.homescore, m.awayscore " +
                             "FROM challenges AS c " +
                             "JOIN matches AS m ON m.id=c.matchid " +
                             "WHERE m.date<=$1 AND c.status=$2 AND m.finished=$3", today, ChallengeStatusAccepted, true)
@@ -22,12 +22,14 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
     defer rows.Close()
 
     challenges := make(map[challenge]match)
+    matchesChecked := make(map[match]bool)
 	for rows.Next() {
         var c challenge
         var m match
         rows.Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status,
-                  &m.homescore, &m.awayscore)
+                  &m.id, &m.homescore, &m.awayscore)
         challenges[c] = m
+        matchesChecked[m] = false
 	}
 
 	if len(challenges) == 0 {
@@ -63,6 +65,10 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
                 b.addPointsChallenge(c, interactive)
             }
 		}
+
+        for m := range matchesChecked {
+            b.db.Exec("UPDATE matches SET checkedchallenges=$1 WHERE id=$2", true, m.id)
+        }
 
 		log.Printf("%v challenges handled!", len(challenges))
         if interactive {
