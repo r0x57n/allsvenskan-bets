@@ -462,9 +462,14 @@ func addErrorResponse(s *dg.Session,
                       i *dg.InteractionCreate,
                       typ dg.InteractionResponseType,
                       optional ...string) {
-        msg := "Oväntat fel, kontakta ägare och beskriv vad du försökte göra.\n"
-        msg += "Timestamp: \n" + time.Now().Format(DB_TIME_LAYOUT)
-        addCompInteractionResponse(s, i, typ, msg + optional[0], []dg.MessageComponent {})
+        msg := fmt.Sprintf("Oväntat fel, skriv gärna i #bets och beskriv vad du försökte göra.\n\n")
+        msg += fmt.Sprintf("**Timestamp** %v\n", time.Now().Format(DB_TIME_LAYOUT))
+
+        if len(optional) > 0 {
+            msg += fmt.Sprintf("**Felmeddelande** %v", optional[0])
+        }
+
+        addCompInteractionResponse(s, i, typ, msg, []dg.MessageComponent {})
 }
 
 func addErrorsResponse(s *dg.Session,
