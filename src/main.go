@@ -20,7 +20,6 @@ const (
 	DB_TYPE                 = "postgres"
 	DB_TIME_LAYOUT          = time.RFC3339
     MSG_TIME_LAYOUT         = "2006-01-02 kl. 15:04"
-    CONFIG_PATH             = "../config.yml"
     CHECK_BETS_INTERVAL     = "30m"
     CHECK_CHALL_INTERVAL    = "30m"
     UPDATE_MATCHES_INTERVAL = "2h"
@@ -28,6 +27,7 @@ const (
 
 var (
     ADD_COMMANDS = flag.Bool("add", false, "Add all commands on startup.")
+    CONFIG_PATH = flag.String("config", "../config", "Path to config file.")
 )
 
 /*
@@ -42,7 +42,7 @@ func main() {
     // Load config
     config.WithOptions(config.ParseEnv)
     config.AddDriver(yaml.Driver)
-    if err := config.LoadFiles(CONFIG_PATH); err != nil { panic(err) }
+    if err := config.LoadFiles(*CONFIG_PATH); err != nil { panic(err) }
 
     dbinfo := dbInfo{
         host: config.String("dbHost"),
