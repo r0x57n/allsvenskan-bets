@@ -192,12 +192,14 @@ func (b *botHolder) summaryRoundSend(round string) {
         {
             Name: "Topp 5",
             Value: topFive,
-            Inline: false,
         },
         {
             Name: "Bott 5",
             Value: bottomFive,
-            Inline: false,
+        },
+        {
+            Name: "-",
+            Value: "*använd /hjälp kommandot för att lära dig tippa*",
         },
     }
 
@@ -324,6 +326,10 @@ func (b *botHolder) summaryMatchDo(i *dg.InteractionCreate) {
         {
             Name: "Utmaningar",
             Value: msgChalls,
+        },
+        {
+            Name: "-",
+            Value: "*använd /hjälp kommandot för att lära dig tippa*",
         },
     }
 
