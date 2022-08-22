@@ -30,8 +30,10 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     if !userToView.viewable && userNotViewingThemselves {
         errors = append(errors, ErrorUserNotViewable)
     } else if !userToView.viewable && !userNotViewingThemselves {
-        desc = "Andra användare kan inte se dina vadslagningar."
+        desc = "Andra användare kan inte se dina vadslagningar.\n"
     }
+
+    desc += "Hemmalag - Bortalag [resultat] (gissning)"
 
     if len(errors) != 0 {
         addErrorsResponse(b.session , i, NewMsg, errors, "Kan inte visa spelarens gissningar/utmaningar.")
@@ -41,21 +43,21 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     where := ""
     switch listTypes {
         case BetStatusLost:
-            where = fmt.Sprintf("uid=%v AND status=%v", uid, BetStatusWon)
-        case BetStatusWon:
             where = fmt.Sprintf("uid=%v AND status=%v", uid, BetStatusLost)
+        case BetStatusWon:
+            where = fmt.Sprintf("uid=%v AND (status=%v OR status=%v)", uid, BetStatusWon, BetStatusAlmostWon)
         case BetStatusUnhandled:
             where = fmt.Sprintf("uid=%v AND status=%v", uid, BetStatusUnhandled)
         default: // all
-            where = fmt.Sprintf("uid=%v AND (status=%v OR status=%v OR status=%v)", uid, BetStatusWon, BetStatusLost, BetStatusUnhandled)
+            where = fmt.Sprintf("uid=%v", uid)
     }
 
     rows, err := b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam, m.date, m.homescore, m.awayscore " +
                            "FROM bets AS b " +
                            "JOIN matches AS m ON b.matchid=m.id " +
                            "WHERE " + where)
-    defer rows.Close()
     if err != nil { log.Panic(err) }
+    defer rows.Close()
 
     comingBets, wonBets, lostBets := "", "", ""
 
@@ -67,9 +69,9 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
 
         switch bet.status {
             case BetStatusLost:
-                lostBets += fmt.Sprintf("%v - %v [%v/%v**,** %v/%v]\n", m.hometeam, m.awayteam, m.homescore, m.awayscore, bet.homescore, bet.awayscore)
-            case BetStatusWon:
-                lostBets += fmt.Sprintf("%v - %v [%v/%v**,** %v/%v]\n", m.hometeam, m.awayteam, m.homescore, m.awayscore, bet.homescore, bet.awayscore)
+                lostBets += fmt.Sprintf("%v - %v [%v-%v] (%v-%v)\n", m.hometeam, m.awayteam, m.homescore, m.awayscore, bet.homescore, bet.awayscore)
+            case BetStatusWon, BetStatusAlmostWon:
+                wonBets += fmt.Sprintf("%v - %v [%v-%v] (%v-%v)\n", m.hometeam, m.awayteam, m.homescore, m.awayscore, bet.homescore, bet.awayscore)
             case BetStatusUnhandled:
                 matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
                 if err != nil { log.Printf("Couldn't parse date: %v", err) }
@@ -99,8 +101,8 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
                            "FROM challenges AS c " +
                            "JOIN matches AS m ON c.matchid=m.id " +
                            "WHERE (c.challengerid=$1 OR c.challengeeid=$2) AND c.status=$3", uid, uid, ChallengeStatusHandled)
-    defer rows.Close()
     if err != nil { log.Panic(err) }
+    defer rows.Close()
 
     type challAndMatch struct {
         c challenge
