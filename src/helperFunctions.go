@@ -100,12 +100,12 @@ func getMatches(db *sql.DB, where string, args ...any) *[]match {
     var matches []match
 
     rows, err := db.Query("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished FROM matches WHERE " + where, args...)
-	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
             return &matches
         } else { log.Panic(err) }
     }
+	defer rows.Close()
 
 	for rows.Next() {
 		var m match
@@ -160,12 +160,12 @@ func getBets(db *sql.DB, where string, args ...any) *[]bet {
     var bets []bet
 
 	rows, err := db.Query("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE " + where, args...)
-	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
             return &bets
         } else { log.Panic(err) }
     }
+	defer rows.Close()
 
 	for rows.Next() {
         var b bet
@@ -196,12 +196,12 @@ func getChallenges(db *sql.DB, where string, args ...any) *[]challenge {
     var challenges []challenge
 
 	rows, err := db.Query("SELECT id, challengerid, challengeeid, type, matchid, points, condition, status FROM challenges WHERE " + where, args...)
-	defer rows.Close()
     if err != nil {
         if err == sql.ErrNoRows {
             return &challenges
         } else { log.Panic(err) }
     }
+	defer rows.Close()
 
 	for rows.Next() {
         var c challenge

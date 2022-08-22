@@ -60,6 +60,7 @@ func (b *botHolder) Init() {
         ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenChallengeSelected(i)   },
         ChickenAnswer:        func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenAnswer(i)              },
         MatchSendInfo:        func(s *dg.Session, i *dg.InteractionCreate) {   b.matchSendInfo(i)              },
+        SummaryMatchDo:       func(s *dg.Session, i *dg.InteractionCreate) {   b.summaryMatchDo(i)             },
     }
 
     s.AddHandler(func(s *dg.Session, i *dg.InteractionCreate) {
@@ -284,7 +285,7 @@ func (b *botHolder) addCommands() {
                 {
                     Type: dg.ApplicationCommandOptionInteger,
                     Name: "omgång",
-                    Description: "Vad ska sammanfattas?",
+                    Description: "Vilken omgång?",
                 },
             },
         },

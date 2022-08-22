@@ -50,7 +50,7 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
             where = fmt.Sprintf("uid=%v AND (status=%v OR status=%v OR status=%v)", uid, BetStatusWon, BetStatusLost, BetStatusUnhandled)
     }
 
-    rows, err := b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam, m.date " +
+    rows, err := b.db.Query("SELECT b.homescore, b.awayscore, b.matchid, b.status, m.hometeam, m.awayteam, m.date, m.homescore, m.awayscore " +
                            "FROM bets AS b " +
                            "JOIN matches AS m ON b.matchid=m.id " +
                            "WHERE " + where)
@@ -63,13 +63,13 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
         var bet bet
         var m match
 
-        rows.Scan(&bet.homescore, &bet.awayscore, &bet.matchid, &bet.status, &m.hometeam, &m.awayteam, &m.date)
+        rows.Scan(&bet.homescore, &bet.awayscore, &bet.matchid, &bet.status, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore)
 
         switch bet.status {
             case BetStatusLost:
-                lostBets += fmt.Sprintf("%v (**%v**) - %v (**%v**).\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore)
+                lostBets += fmt.Sprintf("%v - %v [%v/%v**,** %v/%v]\n", m.hometeam, m.awayteam, m.homescore, m.awayscore, bet.homescore, bet.awayscore)
             case BetStatusWon:
-                wonBets += fmt.Sprintf("%v (**%v**) - %v (**%v**).\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore)
+                lostBets += fmt.Sprintf("%v - %v [%v/%v**,** %v/%v]\n", m.hometeam, m.awayteam, m.homescore, m.awayscore, bet.homescore, bet.awayscore)
             case BetStatusUnhandled:
                 matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
                 if err != nil { log.Printf("Couldn't parse date: %v", err) }

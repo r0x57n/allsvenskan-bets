@@ -111,4 +111,5 @@ const (
     ChickenSelected         = "chickenSelected"
     ChickenAnswer           = "chickenAnswer"
     MatchSendInfo           = "matchSendInfo"
+    SummaryMatchDo          = "summaryMatchDo"
 )

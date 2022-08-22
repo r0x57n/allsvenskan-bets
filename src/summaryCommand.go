@@ -13,12 +13,15 @@ func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
     if options == nil { return }
 
     round, _ := strconv.Atoi(fmt.Sprint(options[0].Value))
+    currentRound := getCurrentRound(b.db)
     matches := *getMatches(b.db, "round=$1", round)
 
-    if round > getCurrentRound(b.db) {
+    if round > getCurrentRound(b.db) || round <= 0 || round > 30 {
         addInteractionResponse(b.session, i, NewMsg, "Kan inte sammanfatta en omgång som inte spelats.")
         return
     }
+
+    isCurrentRound := round == currentRound
 
     var (
         totalWon = 0
@@ -64,7 +67,11 @@ func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
     }
 
     if topFive == "" {
-        topFive = "Ingen vann något denna omgång."
+        if !isCurrentRound {
+            topFive = "Ingen vann något denna omgång."
+        } else {
+            topFive = "Ingen har vunnit något hittills."
+        }
     }
 
     // Bottom 5 list
@@ -82,12 +89,22 @@ func (b *botHolder) summaryCommand(i *dg.InteractionCreate) {
     }
 
     if bottomFive == "" {
-        bottomFive = "Ingen förlorade något denna omgång."
+        if !isCurrentRound {
+            bottomFive = "Ingen förlorade något denna omgång."
+        } else {
+            bottomFive = "Ingen har förlorat något hittills."
+        }
     }
 
     // Add it all together
     title := fmt.Sprintf("Sammanfattning av omgång %v", round)
-    msg := fmt.Sprintf("**%v** matcher spelades och **%v** vadslagningar (v: %v, f: %v) las. ", len(matches), len(allBets), totalWon, totalLost)
+
+    msg := ""
+    if !isCurrentRound {
+        msg = fmt.Sprintf("**%v** matcher spelades och **%v** vadslagningar (v: %v, f: %v) las. ", len(matches), len(allBets), totalWon, totalLost)
+    } else {
+        msg = fmt.Sprintf("**%v** matcher har spelats och **%v** vadslagningar (v: %v, f: %v) lagts. ", len(matches), len(allBets), totalWon, totalLost)
+    }
 
     fields := []*dg.MessageEmbedField {
         {

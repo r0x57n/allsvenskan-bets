@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
-	"log"
+    "fmt"
+    "log"
     "time"
-	"strconv"
-	dg "github.com/bwmarrin/discordgo"
-	_ "github.com/lib/pq"
+    "strconv"
+    dg "github.com/bwmarrin/discordgo"
+    _ "github.com/lib/pq"
 )
 
 func (b *botHolder) matchCommand(i *dg.InteractionCreate) {
@@ -43,7 +43,8 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
 
     matchInfo := ""
     if m.finished {
-        matchInfo = fmt.Sprintf("%v - %v, slutade %v - %v\n", m.hometeam, m.awayteam, m.homescore, m.awayscore)
+        matchInfo = fmt.Sprintf("%v - %v\n", m.hometeam, m.awayteam)
+        matchInfo += fmt.Sprintf("Resultat: %v - %v\n", m.homescore, m.awayscore)
     } else {
         matchInfo = fmt.Sprintf("%v - %v, spelas %v", m.hometeam, m.awayteam, datetime)
     }
@@ -137,7 +138,7 @@ func (b *botHolder) matchSendInfo(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent{},
             Embeds: []*dg.MessageEmbed {
                 {
-                    Title: "Resultat",
+                    Title: "Matchinfo",
                     Description: matchInfo,
                     Fields: fields,
                 },

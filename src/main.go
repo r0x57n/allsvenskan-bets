@@ -36,6 +36,9 @@ var (
 */
 
 func main() {
+    log.Print("Parsing flags...")
+    flag.Parse()
+
     // Setup logging to file
     if *LOG_TO_FILE {
         f, err := os.OpenFile("log.txt", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
@@ -47,8 +50,6 @@ func main() {
 
     // Start running
 	log.Print("Starting...")
-
-    flag.Parse()
 
     // Load config
     config.WithOptions(config.ParseEnv)
