@@ -8,7 +8,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func (b *Bot) checkUnhandledBets(interactive bool) {
+func (b *Bot) handleBets(interactive bool) {
 	today := time.Now().Format(DB_TIME_LAYOUT)
 
 	log.Printf("Checking unhandled bets...")

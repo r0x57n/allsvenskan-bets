@@ -1,26 +1,19 @@
 package main
 
 import (
-    "fmt"
     "log"
-    "strconv"
+    "fmt"
     "time"
-    "database/sql"
+    "strconv"
+    "encoding/json"
     dg "github.com/bwmarrin/discordgo"
     _ "github.com/lib/pq"
 )
 
 func (b *Bot) sendSummaries() {
-	today := time.Now().Format(DB_TIME_LAYOUT)
     rows, err := b.db.Query("SELECT id FROM matches " +
-                            "WHERE date<=$1 AND finished=$2 AND summarised=$3", today, true, false)
-    if err != nil {
-        if err != sql.ErrNoRows {
-            log.Panic(err)
-        } else {
-            return
-        }
-    }
+                            "WHERE round=$1 AND finished=$2 AND summarised=$3", b.getInfo().CurrentRound, true, false)
+    if err != nil { log.Panic(err) }
 
     var ids []int
     for rows.Next() {
@@ -29,106 +22,18 @@ func (b *Bot) sendSummaries() {
         ids = append(ids, mid)
     }
 
+    // are all matches summarised? then summarise round
+    if len(ids) == 0 {
+        b.sendRoundSummary()
+        return
+    }
+
     for _, mid := range ids {
-        m := getMatch(b.db, "id=$1", mid)
-
-        matchInfo := ""
-        if m.Finished {
-            matchInfo = fmt.Sprintf("%v - %v\n", m.HomeTeam, m.AwayTeam)
-            matchInfo += fmt.Sprintf("Resultat: %v - %v\n\n", m.HomeScore, m.AwayScore)
-        }
-
-        // all bets
-        betRows, err := b.db.Query("SELECT b.id, b.uid, b.matchid, b.homescore, b.awayscore, b.status, b.round " +
-                                "FROM bets AS b " +
-                                "JOIN users AS u ON u.uid=b.uid " +
-                                "WHERE b.matchid=$1 AND u.viewable=$2", m.ID, true)
-        if err != nil { log.Panic(err) }
-        bets := *getBetsFromRows(betRows)
-
-        msgBets := ""
-        if len(bets) == 0 {
-            msgBets = "-"
-        }
-
-        for _, bet := range bets {
-            user, _ := b.session.User(strconv.Itoa(bet.UserID))
-            username := ""
-            if user == nil {
-                username = strconv.Itoa(bet.UserID)
-            } else {
-                username = user.Username
-            }
-
-            if m.Finished {
-                won := bet.HomeScore == m.HomeScore && bet.AwayScore == m.AwayScore
-
-                if won {
-                    msgBets += fmt.Sprintf("**%v gissade på %v - %v**\n", username, bet.HomeScore, bet.AwayScore)
-                } else {
-                    msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.HomeScore, bet.AwayScore)
-                }
-            } else {
-                msgBets += fmt.Sprintf("%v gissar på %v - %v\n", username, bet.HomeScore, bet.AwayScore)
-            }
-        }
-
-        // all challenges
-        challenges := *getChallenges(b.db, "matchid=$1 AND (status=$2 OR status=$3)",
-                                    mid, ChallengeStatusHandled, ChallengeStatusAccepted)
-
-        msgChalls := ""
-        if len(challenges) == 0 {
-            msgChalls = "-"
-        }
-
-        for _, c := range challenges {
-            userChallenger, _ := b.session.User(strconv.Itoa(c.ChallengerID))
-            userChallengee, _ := b.session.User(strconv.Itoa(c.ChallengeeID))
-            usernameChallenger := ""
-            usernameChallengee := ""
-            if userChallenger == nil {
-                usernameChallenger = strconv.Itoa(c.ChallengerID)
-            } else {
-                usernameChallenger = userChallenger.Username
-            }
-
-            if userChallengee == nil {
-                usernameChallengee = strconv.Itoa(c.ChallengeeID)
-            } else {
-                usernameChallengee = userChallengee.Username
-            }
-
-            winner := ""
-            if c.Condition == ChallengeConditionWinnerHome {
-                winner = m.HomeTeam
-            } else {
-                winner = m.AwayTeam
-            }
-
-            if m.Finished {
-                msgChalls += fmt.Sprintf("%v utmanade %v om att %v skulle vinna för %v poäng\n",
-                                        usernameChallenger, usernameChallengee, winner, c.Points)
-            } else {
-                msgChalls += fmt.Sprintf("%v utmanar %v om att %v ska vinna för %v poäng\n",
-                                        usernameChallenger, usernameChallengee, winner, c.Points)
-            }
-        }
-
-        fields := []*dg.MessageEmbedField {
-            {
-                Name: "Gissningar",
-                Value: msgBets,
-            },
-            {
-                Name: "Utmaningar",
-                Value: msgChalls,
-            },
-            {
-                Name: "-",
-                Value: "*använd /hjälp kommandot för att lära dig tippa*",
-            },
-        }
+        summary := b.getMatchSummary(strconv.Itoa(mid))
+        summary.Fields = append(summary.Fields, &dg.MessageEmbedField{
+            Name: "-",
+            Value: "*använd /hjälp kommandot för att lära dig tippa*",
+        })
 
         channelID := "-1"
         channels, _ := b.session.GuildChannels(b.allsvenskanGuildID)
@@ -141,12 +46,113 @@ func (b *Bot) sendSummaries() {
             Embeds: []*dg.MessageEmbed {
                 {
                     Title: "Match färdigspelad!",
-                    Description: matchInfo,
-                    Fields: fields,
+                    Description: summary.Info,
+                    Fields: summary.Fields,
                 },
             },
         })
 
-        b.db.Exec("UPDATE matches SET summarised=$1 WHERE id=$2", true, mid)
+        _, err := b.db.Exec("UPDATE matches SET summarised=$1 WHERE id=$2", true, mid)
+        if err != nil { log.Panic(err) }
     }
+}
+
+func (b *Bot) sendRoundSummary() {
+    info := b.getInfo()
+    round := info.CurrentRound
+
+    count := 0
+    err := b.db.QueryRow("SELECT count(id) FROM matches WHERE finished=$1 AND round=$2", false, round).Scan(&count)
+    if err != nil { log.Panic(err) }
+
+    if (count != 0) {
+        return
+    }
+
+    count = 0
+    err = b.db.QueryRow("SELECT count(id) FROM summaries WHERE round=$1 AND year=$2", round, time.Now().Year()).Scan(&count)
+    if err != nil { log.Panic(err) }
+
+    if count == 0 {
+        b.createRoundSummary(fmt.Sprint(round))
+    }
+
+    var id int
+    var jsonD []byte
+    var sent bool
+    err = b.db.QueryRow("SELECT id, data, sent FROM summaries WHERE round=$1 AND year=$2", round, time.Now().Year()).Scan(&id, &jsonD, &sent)
+    if err != nil { log.Panic(err) }
+
+    if sent {
+        return
+    }
+
+    var roundData Round
+    json.Unmarshal(jsonD, &roundData)
+
+    topFive := ""
+    placement := 1
+    for user, wins := range roundData.TopFive {
+        topFive += fmt.Sprintf("#%v - %v med **%v** vinster\n", placement, user, wins)
+        placement++
+    }
+
+    bottomFive := ""
+    placement = 1
+    for user, losses := range roundData.BotFive {
+        bottomFive += fmt.Sprintf("#%v - %v med **%v** förluster\n", placement, user, losses)
+        placement++
+    }
+
+    if topFive == "" {
+        topFive = "-"
+    }
+
+    if bottomFive == "" {
+        bottomFive = "-"
+    }
+
+    title := fmt.Sprintf("Sammanfattning av omgång %v", roundData.Num)
+
+    msg := fmt.Sprintf("**%v** matcher spelades och **%v** vadslagningar las.\n",
+                       roundData.NumMatches, roundData.NumBets)
+    msg += fmt.Sprintf("Av dessa var **%v** vinster och **%v** förluster.",
+                       roundData.NumWins, roundData.NumLoss)
+
+    fields := []*dg.MessageEmbedField {
+        {
+            Name: "Topp 5",
+            Value: topFive,
+        },
+        {
+            Name: "Bott 5",
+            Value: bottomFive,
+        },
+        {
+            Name: "-",
+            Value: "*använd /hjälp kommandot för att lära dig tippa*",
+        },
+    }
+
+    channelID := "-1"
+    channels, _ := b.session.GuildChannels(b.allsvenskanGuildID)
+    for _, ch := range channels {
+        if ch.Name == "bets" {
+            channelID = ch.ID
+        }
+    }
+    b.session.ChannelMessageSendComplex(channelID, &dg.MessageSend{
+        Embeds: []*dg.MessageEmbed {
+            {
+                Title: title,
+                Description: msg,
+                Fields: fields,
+            },
+        },
+    })
+
+    _, err = b.db.Exec("UPDATE summaries SET sent=$1 WHERE id=$2", true, id)
+    if err != nil { log.Panic(err) }
+    _, err = b.db.Exec("UPDATE info SET currentround=currentround+1 WHERE id=0")
+    if err != nil { log.Panic(err) }
 }

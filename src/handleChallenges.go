@@ -7,7 +7,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func (b *Bot) checkUnhandledChallenges(interactive bool) {
+func (b *Bot) handleChallenges(interactive bool) {
 	today := time.Now().Format(DB_TIME_LAYOUT)
 
 	log.Printf("Checking unhandled challenges...")

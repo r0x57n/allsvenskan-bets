@@ -3,16 +3,20 @@ package main
 import (
     "fmt"
     "log"
-    "time"
-    "strconv"
     dg "github.com/bwmarrin/discordgo"
     _ "github.com/lib/pq"
 )
 
 func (b *Bot) matchCommand(i *dg.InteractionCreate) {
+    round := getCurrentRound(b.db)
+    cmdOptions := i.Interaction.ApplicationCommandData().Options
+    if len(cmdOptions) != 0 {
+        round = int(cmdOptions[0].IntValue())
+    }
+
     rows, err := b.db.Query("SELECT m.id, m.hometeam, m.awayteam, m.date, m.homescore, m.awayscore, m.finished " +
                             "FROM matches AS m " +
-                            "WHERE round=$1", getCurrentRound(b.db))
+                            "WHERE round=$1", round)
     if err != nil { log.Panic(err) }
 
     options := *getOptionsOutOfRows(rows)
@@ -22,120 +26,23 @@ func (b *Bot) matchCommand(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent {
                 dg.SelectMenu {
                     Placeholder: "Välj en match",
-                    CustomID: MatchSendInfo, // component handler
+                    CustomID: MatchSummarySend, // component handler
                     Options: options,
                 },
             },
         },
     }
 
-    addCompInteractionResponse(b.session, i, NewMsg, "Omgångens matcher.", components)
+    title := fmt.Sprintf("Matcher för omgång %v", round)
+    addCompInteractionResponse(b.session, i, NewMsg, title, components)
 }
 
-func (b *Bot) matchSendInfo(i *dg.InteractionCreate) {
+func (b *Bot) matchSummarySend(i *dg.InteractionCreate) {
     vals := getValuesOrRespond(b.session, i, NewMsg)
     if vals == nil { return }
 
     mid := vals[0]
-    m := getMatch(b.db, "id=$1", mid)
-
-    datetime, _ := time.Parse(DB_TIME_LAYOUT, m.Date)
-
-    matchInfo := ""
-    if m.Finished {
-        matchInfo = fmt.Sprintf("%v - %v\n", m.HomeTeam, m.AwayTeam)
-        matchInfo += fmt.Sprintf("Resultat: %v - %v\n", m.HomeScore, m.AwayScore)
-    } else {
-        matchInfo = fmt.Sprintf("%v - %v, spelas %v", m.HomeTeam, m.AwayTeam, datetime.Format(MSG_TIME_LAYOUT))
-    }
-
-    // all bets
-    betRows, err := b.db.Query("SELECT b.id, b.uid, b.matchid, b.homescore, b.awayscore, b.status, b.round " +
-                               "FROM bets AS b " +
-                               "JOIN users AS u ON u.uid=b.uid " +
-                               "WHERE b.matchid=$1 AND u.viewable=$2", m.ID, true)
-    if err != nil { log.Panic(err) }
-    bets := *getBetsFromRows(betRows)
-
-    msgBets := ""
-    if len(bets) == 0 {
-        msgBets = "-"
-    }
-
-    for _, bet := range bets {
-        user, _ := b.session.User(strconv.Itoa(bet.UserID))
-        username := ""
-        if user == nil {
-            username = strconv.Itoa(bet.UserID)
-        } else {
-            username = user.Username
-        }
-
-        if m.Finished {
-            won := bet.HomeScore == m.HomeScore && bet.AwayScore == m.AwayScore
-
-            if won {
-                msgBets += fmt.Sprintf("**%v gissade på %v - %v**\n", username, bet.HomeScore, bet.AwayScore)
-            } else {
-                msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.HomeScore, bet.AwayScore)
-            }
-        } else {
-            msgBets += fmt.Sprintf("%v gissar på %v - %v\n", username, bet.HomeScore, bet.AwayScore)
-        }
-    }
-
-    // all challenges
-    challenges := *getChallenges(b.db, "matchid=$1 AND (status=$2 OR status=$3)",
-                                 mid, ChallengeStatusHandled, ChallengeStatusAccepted)
-
-    msgChalls := ""
-    if len(challenges) == 0 {
-        msgChalls = "-"
-    }
-
-    for _, c := range challenges {
-        userChallenger, _ := b.session.User(strconv.Itoa(c.ChallengerID))
-        userChallengee, _ := b.session.User(strconv.Itoa(c.ChallengeeID))
-        usernameChallenger := ""
-        usernameChallengee := ""
-        if userChallenger == nil {
-            usernameChallenger = strconv.Itoa(c.ChallengerID)
-        } else {
-            usernameChallenger = userChallenger.Username
-        }
-
-        if userChallengee == nil {
-            usernameChallengee = strconv.Itoa(c.ChallengeeID)
-        } else {
-            usernameChallengee = userChallengee.Username
-        }
-
-        winner := ""
-        if c.Condition == ChallengeConditionWinnerHome {
-            winner = m.HomeTeam
-        } else {
-            winner = m.AwayTeam
-        }
-
-        if m.Finished {
-            msgChalls += fmt.Sprintf("%v utmanade %v om att %v skulle vinna för %v poäng\n",
-                                    usernameChallenger, usernameChallengee, winner, c.Points)
-        } else {
-            msgChalls += fmt.Sprintf("%v utmanar %v om att %v ska vinna för %v poäng\n",
-                                    usernameChallenger, usernameChallengee, winner, c.Points)
-        }
-    }
-
-    fields := []*dg.MessageEmbedField {
-        {
-            Name: "Gissningar",
-            Value: msgBets,
-        },
-        {
-            Name: "Utmaningar",
-            Value: msgChalls,
-        },
-    }
+    summary := b.getMatchSummary(mid)
 
     if err := b.session.InteractionRespond(i.Interaction, &dg.InteractionResponse {
         Type: UpdateMsg,
@@ -144,9 +51,9 @@ func (b *Bot) matchSendInfo(i *dg.InteractionCreate) {
             Components: []dg.MessageComponent{},
             Embeds: []*dg.MessageEmbed {
                 {
-                    Title: "Matchinfo",
-                    Description: matchInfo,
-                    Fields: fields,
+                    Title: "Gissningar",
+                    Description: summary.Info,
+                    Fields: summary.Fields,
                 },
             },
 

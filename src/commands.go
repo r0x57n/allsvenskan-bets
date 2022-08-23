@@ -28,7 +28,7 @@ const (
     RemoveCommand       = "remove"
     CheckCommand        = "checkbets"
     UpdateCommand       = "update"
-    SummaryCommand      = "sammanfatta"
+    SummariseCommand    = "sammanfatta"
     MatchCommand        = "match"
 )
 
@@ -57,42 +57,42 @@ const (
     ChallAnswer             = "challAnswer"
     ChickenSelected         = "chickenSelected"
     ChickenAnswer           = "chickenAnswer"
-    MatchSendInfo           = "matchSendInfo"
-    SummaryMatchDo          = "summaryMatchDo"
+    MatchSummarySend        = "matchSendInfo"
+    SummariseMatchSend      = "summaryMatchDo"
 )
 
 func (b *Bot) addCommands() {
     b.commands = []Command {
         {
             Name: HelpCommand,
-            Description: "Få hjälp med hur denna bot fungerar.",
+            Description: "få hjälp med hur denna bot fungerar",
             Category: CommandCategoryGeneral,
         },
         {
             Name: GuessCommand,
-            Description: "Gör en gissning över slutresultatet för en kommande match.",
+            Description: "gör en gissning över slutresultatet för en kommande match",
             Category: CommandCategoryBetting,
         },
         {
             Name: RegretCommand,
-            Description: "Ångra en gissning du har gjort.",
+            Description: "ångra en gissning du har gjort",
             Category: CommandCategoryBetting,
         },
         {
             Name: ChallengeCommand,
-            Description: "Utmana en annan användare om en kommande match.",
+            Description: "utmana en annan användare om en kommande match",
             Category: CommandCategoryBetting,
             Options: []*dg.ApplicationCommandOption {
                 {
                     Type: dg.ApplicationCommandOptionUser,
                     Name: "användarnamn",
-                    Description: "Användare att utmana.",
+                    Description: "användare att utmana",
                     Required: true,
                 },
                 {
                     Type: dg.ApplicationCommandOptionString,
                     Name: "sort",
-                    Description: "Vilken sorts utmaning?",
+                    Description: "vilken sorts utmaning?",
                     Required: true,
                     Choices: []*dg.ApplicationCommandOptionChoice {
                         {
@@ -105,12 +105,12 @@ func (b *Bot) addCommands() {
         },
         {
             Name: ChickenCommand,
-            Description: "Skapa en förfrågan om att stoppa en utmaning.",
+            Description: "skapa en förfrågan om att stoppa en utmaning",
             Category: CommandCategoryBetting,
         },
         {
             Name: BetsCommand,
-            Description: "Lista en användares gissningar/utmaningar.",
+            Description: "lista en användares gissningar/utmaningar",
             Category: CommandCategoryListing,
             Options: []*dg.ApplicationCommandOption {
                 {
@@ -122,7 +122,7 @@ func (b *Bot) addCommands() {
                 {
                     Type: dg.ApplicationCommandOptionString,
                     Name: "sort",
-                    Description: "Lista bara korrekta/inkorrekta/kommande.",
+                    Description: "lista bara korrekta/inkorrekta/kommande",
                     Choices: []*dg.ApplicationCommandOptionChoice {
                         {
                             Name: "vunna",
@@ -142,71 +142,78 @@ func (b *Bot) addCommands() {
         },
         {
             Name: PointsCommand,
-            Description: "Visa dina poäng och topp 10 på servern.",
+            Description: "visa dina poäng och topp 10 på servern",
             Category: CommandCategoryListing,
         },
         {
             Name: RoundCommand,
-            Description: "Visa en sammanfattning av en tidigare omgång.",
+            Description: "visa en sammanfattning av en tidigare omgång",
             Category: CommandCategoryListing,
             Options: []*dg.ApplicationCommandOption {
                 {
                     Type: dg.ApplicationCommandOptionInteger,
                     Name: "omgång",
-                    Description: "Vilken omgång att sammanfatta (0 == nuvarande).",
+                    Description: "vilken omgång att sammanfatta (0 == nuvarande)",
                     Required: true,
                 },
             },
         },
         {
             Name: MatchCommand,
-            Description: "Visa bets/utmaningar för en viss match.",
+            Description: "visa bets/utmaningar för en viss match",
             Category: CommandCategoryListing,
+            Options: []*dg.ApplicationCommandOption {
+                {
+                    Type: dg.ApplicationCommandOptionInteger,
+                    Name: "omgång",
+                    Description: "välj en omgång du vill visa matcher för, lämna tom eller '0' för aktuella",
+                },
+            },
         },
         {
             Name: SettingsCommand,
-            Description: "Inställningar för din användare.",
+            Description: "inställningar för din användare",
             Category: CommandCategoryGeneral,
         },
         {
             Name: InfoCommand,
-            Description: "Teknisk info om botten.",
+            Description: "teknisk info om botten",
             Category: CommandCategoryGeneral,
         },
         {
             Name: AddCommand,
-            Description: "Uppdatera alla kommandon eller ett enskilt.",
+            Description: "uppdatera alla kommandon eller ett enskilt",
             Category: CommandCategoryAdmin,
             Admin: true,
         },
         {
             Name: RemoveCommand,
-            Description: "Ta bort ett enskilt kommando.",
+            Description: "ta bort ett enskilt kommando",
             Category: CommandCategoryAdmin,
             Admin: true,
         },
         {
             Name: CheckCommand,
-            Description: "Kör checks för challenges/bets.",
+            Description: "kör checks för challenges/bets",
             Category: CommandCategoryAdmin,
             Admin: true,
         },
         {
             Name: UpdateCommand,
-            Description: "Uppdaterar matcher manuellt.",
+            Description: "uppdaterar matcher manuellt",
             Category: CommandCategoryAdmin,
             Admin: true,
         },
         {
-            Name: SummaryCommand,
-            Description: "Sammanfattar en omgång eller match till #bets",
+            Name: SummariseCommand,
+            Description: "sammanfattar en omgång eller match till #bets",
             Category: CommandCategoryAdmin,
             Admin: true,
             Options: []*dg.ApplicationCommandOption {
                 {
                     Type: dg.ApplicationCommandOptionString,
                     Name: "sort",
-                    Description: "Vad ska sammanfattas?",
+                    Description: "vad ska sammanfattas?",
                     Required: true,
                     Choices: []*dg.ApplicationCommandOptionChoice {
                         {
@@ -222,7 +229,7 @@ func (b *Bot) addCommands() {
                 {
                     Type: dg.ApplicationCommandOptionInteger,
                     Name: "omgång",
-                    Description: "Vilken omgång?",
+                    Description: "vilken omgång?",
                 },
             },
         },
@@ -248,7 +255,7 @@ func (b *Bot) addCommands() {
         RemoveCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.removeCommand(i)      },
         CheckCommand:       func(s *dg.Session, i *dg.InteractionCreate) {    b.checkBetsCommand(i)   },
         UpdateCommand:      func(s *dg.Session, i *dg.InteractionCreate) {    b.updateCommand(i)      },
-        SummaryCommand:     func(s *dg.Session, i *dg.InteractionCreate) {    b.summaryCommand(i)     },
+        SummariseCommand:   func(s *dg.Session, i *dg.InteractionCreate) {    b.summariseCommand(i)   },
     }
 
     // Link functions to command components
@@ -268,7 +275,7 @@ func (b *Bot) addCommands() {
         RegretSelected:       func(s *dg.Session, i *dg.InteractionCreate) {   b.regretSelected(i)             },
         ChickenSelected:      func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenChallengeSelected(i)   },
         ChickenAnswer:        func(s *dg.Session, i *dg.InteractionCreate) {   b.chickenAnswer(i)              },
-        MatchSendInfo:        func(s *dg.Session, i *dg.InteractionCreate) {   b.matchSendInfo(i)              },
-        SummaryMatchDo:       func(s *dg.Session, i *dg.InteractionCreate) {   b.summaryMatchDo(i)             },
+        MatchSummarySend:     func(s *dg.Session, i *dg.InteractionCreate) {   b.matchSummarySend(i)           },
+        SummariseMatchSend:   func(s *dg.Session, i *dg.InteractionCreate) {   b.summariseMatchSend(i)         },
     }
 }

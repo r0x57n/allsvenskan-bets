@@ -29,6 +29,11 @@ type InfoDB struct {
     Name  string
 }
 
+type BotInfo struct {
+    CurrentRound int
+    LastUpdate string
+}
+
 type Match struct {
 	ID int
 	HomeTeam string
@@ -41,6 +46,8 @@ type Match struct {
 }
 
 type MatchSummary struct {
+    Info string
+    Fields []*dg.MessageEmbedField
 }
 
 type Bet struct {
