@@ -52,7 +52,7 @@ func (b *Bot) matchSummarySend(i *dg.InteractionCreate) {
     summary := b.getMatchSummary(mid)
 
     if err := b.session.InteractionRespond(i.Interaction, &dg.InteractionResponse {
-        Type: UpdateMsg,
+        Type: NewMsg,
         Data: &dg.InteractionResponseData {
             Flags: 1 << 6, // Ephemeral
             Components: []dg.MessageComponent{},
