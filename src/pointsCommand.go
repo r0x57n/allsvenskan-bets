@@ -8,7 +8,7 @@ import (
 	dg "github.com/bwmarrin/discordgo"
 )
 
-func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
+func (b *Bot) pointsCommand(i *dg.InteractionCreate) {
 	rows, err := b.db.Query("SELECT uid, points FROM users ORDER BY points DESC LIMIT 10")
 	defer rows.Close()
 	if err != nil { log.Panic(err) }
@@ -41,7 +41,7 @@ func (b *botHolder) pointsCommand(i *dg.InteractionCreate) {
     }
 
     user := getUserFromInteraction(b.db, i)
-	userPoints := fmt.Sprintf("Du har samlat ihop **%v** poäng i år!", user.points)
+	userPoints := fmt.Sprintf("Du har samlat ihop **%v** poäng i år!", user.Points)
 
     fields := []*dg.MessageEmbedField {
         {

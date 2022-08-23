@@ -6,7 +6,7 @@ import (
     "fmt"
 )
 
-func (b *botHolder) updateMatches(interactive bool) {
+func (b *Bot) updateMatches(interactive bool) {
     log.Printf("Starting updater...")
 
     cmd := exec.Command("./updater")

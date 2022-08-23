@@ -6,12 +6,12 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
+func (b *Bot) settingsCommand(i *dg.InteractionCreate) {
     uid := getInteractUID(i)
     u := getUser(b.db, uid)
 
     defOption := true
-    if !u.viewable {
+    if !u.Viewable {
         defOption = false
     }
 
@@ -29,7 +29,7 @@ func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
     }
 
     defOption = true
-    if !u.interactable {
+    if !u.Interactable {
         defOption = false
     }
 
@@ -99,7 +99,7 @@ func (b *botHolder) settingsCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, NewMsg, msg, components)
 }
 
-func (b *botHolder) settingsVisibility(i *dg.InteractionCreate) {
+func (b *Bot) settingsVisibility(i *dg.InteractionCreate) {
     vals := getValuesOrRespond(b.session, i, UpdateMsg)
     if vals == nil { return }
 
@@ -111,7 +111,7 @@ func (b *botHolder) settingsVisibility(i *dg.InteractionCreate) {
     addNoInteractionResponse(b.session, i)
 }
 
-func (b *botHolder) settingsChall(i *dg.InteractionCreate) {
+func (b *Bot) settingsChall(i *dg.InteractionCreate) {
     vals := getValuesOrRespond(b.session, i, UpdateMsg)
     if vals == nil { return }
 

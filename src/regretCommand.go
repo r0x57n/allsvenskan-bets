@@ -9,7 +9,7 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
+func (b *Bot) regretCommand(i *dg.InteractionCreate) {
     uid := getInteractUID(i)
 
     allBets := *getBets(b.db, "uid=$1 AND status=$2", uid, BetStatusUnhandled)
@@ -17,15 +17,15 @@ func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
     labels := make(map[int]string)
     dates := make(map[int]string)
 
-    var regrettableBets []bet
+    var regrettableBets []Bet
 
     for _, bet := range allBets {
-        m := getMatch(b.db, "id=$1", bet.matchid)
-        matchDate, _ := time.Parse(DB_TIME_LAYOUT, m.date)
+        m := getMatch(b.db, "id=$1", bet.MatchID)
+        matchDate, _ := time.Parse(DB_TIME_LAYOUT, m.Date)
 
         if time.Now().Before(matchDate) {
-            labels[bet.id] = fmt.Sprintf("%v vs %v [%v-%v]", m.hometeam, m.awayteam, bet.homescore, bet.awayscore)
-            dates[bet.id] = matchDate.Format(MSG_TIME_LAYOUT)
+            labels[bet.ID] = fmt.Sprintf("%v vs %v [%v-%v]", m.HomeTeam, m.AwayTeam, bet.HomeScore, bet.AwayScore)
+            dates[bet.ID] = matchDate.Format(MSG_TIME_LAYOUT)
             regrettableBets = append(regrettableBets, bet)
         }
     }
@@ -39,9 +39,9 @@ func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
 
     for _, b := range regrettableBets {
         options = append(options, dg.SelectMenuOption{
-            Label: labels[b.id],
-            Value: strconv.Itoa(b.id),
-            Description: dates[b.id],
+            Label: labels[b.ID],
+            Value: strconv.Itoa(b.ID),
+            Description: dates[b.ID],
         })
     }
 
@@ -60,16 +60,16 @@ func (b *botHolder) regretCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, NewMsg, "Dina vadslagningar", components)
 }
 
-func (b *botHolder) regretSelected(i *dg.InteractionCreate) {
+func (b *Bot) regretSelected(i *dg.InteractionCreate) {
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
     bid := values[0]
 
-    var m match
-    var bet bet
+    var m Match
+    var bet Bet
     err := b.db.QueryRow("SELECT m.date, b.uid FROM bets AS b " +
                        "JOIN matches AS m ON b.matchid=m.id " +
-                       "WHERE b.id=$1", bid).Scan(&m.date, &bet.uid)
+                       "WHERE b.id=$1", bid).Scan(&m.Date, &bet.UserID)
     if err != nil { log.Panic(err) }
 
     components := []dg.MessageComponent {}
@@ -78,7 +78,7 @@ func (b *botHolder) regretSelected(i *dg.InteractionCreate) {
     if matchHasBegun(b.session, i, m) {
         msg = "Kan inte ta bort en vadslagning om en pågående match..."
     } else {
-        if strconv.Itoa(bet.uid) != getInteractUID(i) {
+        if strconv.Itoa(bet.UserID) != getInteractUID(i) {
             addErrorResponse(b.session, i, UpdateMsg, "Du försökte ta bort någon annans vadslagning...")
             return
         }

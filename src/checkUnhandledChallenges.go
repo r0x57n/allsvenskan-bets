@@ -7,7 +7,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func (b *botHolder) checkUnhandledChallenges(interactive bool) {
+func (b *Bot) checkUnhandledChallenges(interactive bool) {
 	today := time.Now().Format(DB_TIME_LAYOUT)
 
 	log.Printf("Checking unhandled challenges...")
@@ -21,13 +21,13 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
 	if err != nil { log.Panic(err) }
     defer rows.Close()
 
-    challenges := make(map[challenge]match)
-    matchesChecked := make(map[match]bool)
+    challenges := make(map[Challenge]Match)
+    matchesChecked := make(map[Match]bool)
 	for rows.Next() {
-        var c challenge
-        var m match
-        rows.Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status,
-                  &m.id, &m.homescore, &m.awayscore)
+        var c Challenge
+        var m Match
+        rows.Scan(&c.ID, &c.ChallengerID, &c.ChallengeeID, &c.Type, &c.MatchID, &c.Points, &c.Condition, &c.Status,
+                  &m.ID, &m.HomeScore, &m.AwayScore)
         challenges[c] = m
         matchesChecked[m] = false
 	}
@@ -43,22 +43,22 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
 
 		// Handle bets for each match individually
 		for c, m := range challenges {
-            if c.typ == ChallengeTypeWinner {
-                homeWon := m.homescore > m.awayscore
+            if c.Type == ChallengeTypeWinner {
+                homeWon := m.HomeScore > m.AwayScore
 
-                if m.homescore == m.awayscore {
-                    c.winner = ChallengeWinnerNone
+                if m.HomeScore == m.AwayScore {
+                    c.Winner = ChallengeWinnerNone
                 } else if homeWon {
-                    if c.condition == ChallengeConditionWinnerHome {
-                        c.winner = ChallengeWinnerChallenger
+                    if c.Condition == ChallengeConditionWinnerHome {
+                        c.Winner = ChallengeWinnerChallenger
                     } else {
-                        c.winner = ChallengeWinnerChallengee
+                        c.Winner = ChallengeWinnerChallengee
                     }
                 } else {
-                    if c.condition == ChallengeConditionWinnerAway {
-                        c.winner = ChallengeWinnerChallenger
+                    if c.Condition == ChallengeConditionWinnerAway {
+                        c.Winner = ChallengeWinnerChallenger
                     } else {
-                        c.winner = ChallengeWinnerChallengee
+                        c.Winner = ChallengeWinnerChallengee
                     }
                 }
 
@@ -67,7 +67,7 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
 		}
 
         for m := range matchesChecked {
-            b.db.Exec("UPDATE matches SET checkedchallenges=$1 WHERE id=$2", true, m.id)
+            b.db.Exec("UPDATE matches SET checkedchallenges=$1 WHERE id=$2", true, m.ID)
         }
 
 		log.Printf("%v challenges handled!", len(challenges))
@@ -77,37 +77,37 @@ func (b *botHolder) checkUnhandledChallenges(interactive bool) {
 	}
 }
 
-func (b *botHolder) addPointsChallenge(c challenge, interactive bool) {
+func (b *Bot) addPointsChallenge(c Challenge, interactive bool) {
     winnerUID := 0
 
-    if c.winner == ChallengeWinnerNone {
-        log.Printf("Game ended (%v - %v) in a tie, giving back points...", c.challengerid, c.challengeeid)
+    if c.Winner == ChallengeWinnerNone {
+        log.Printf("Game ended (%v - %v) in a tie, giving back points...", c.ChallengerID, c.ChallengeeID)
         if interactive {
-            b.messageOwner(fmt.Sprintf("Game ended (%v - %v) in a tie, giving back points...", c.challengerid, c.challengeeid))
+            b.messageOwner(fmt.Sprintf("Game ended (%v - %v) in a tie, giving back points...", c.ChallengerID, c.ChallengeeID))
         }
 
-        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengerid)
+        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.Points, c.ChallengerID)
         if err != nil { log.Panic(err) }
-        _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengeeid)
+        _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.Points, c.ChallengeeID)
         if err != nil { log.Panic(err) }
     } else {
-        if c.winner == ChallengeWinnerChallenger {
-            winnerUID = c.challengerid
-        } else if c.winner == ChallengeWinnerChallengee {
-            winnerUID = c.challengeeid
+        if c.Winner == ChallengeWinnerChallenger {
+            winnerUID = c.ChallengerID
+        } else if c.Winner == ChallengeWinnerChallengee {
+            winnerUID = c.ChallengeeID
         } else {
             log.Fatalf("Got %v as winnerUID when checking challenges.", winnerUID)
         }
 
-        log.Printf("Awarding %v point to %v", c.points, winnerUID)
+        log.Printf("Awarding %v point to %v", c.Points, winnerUID)
         if interactive {
-            b.messageOwner(fmt.Sprintf("Awarding %v points to %v", c.points, winnerUID))
+            b.messageOwner(fmt.Sprintf("Awarding %v points to %v", c.Points, winnerUID))
         }
 
-        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points*2, winnerUID)
+        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.Points*2, winnerUID)
         if err != nil { log.Panic(err) }
     }
 
-	_, err := b.db.Exec("UPDATE challenges SET status=$1, winner=$2 WHERE id=$3", ChallengeStatusHandled, c.winner, c.id)
+	_, err := b.db.Exec("UPDATE challenges SET status=$1, winner=$2 WHERE id=$3", ChallengeStatusHandled, c.Winner, c.ID)
     if err != nil { log.Panic(err) }
 }

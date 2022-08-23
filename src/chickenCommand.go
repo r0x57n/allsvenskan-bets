@@ -10,7 +10,7 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
+func (b *Bot) chickenCommand(i *dg.InteractionCreate) {
     uid := getInteractUID(i)
 
     now := time.Now().Format(DB_TIME_LAYOUT)
@@ -24,11 +24,11 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
                             now, uid, uid, uid, uid, ChallengeStatusSent, ChallengeStatusAccepted)
     if err != nil { log.Panic(err) }
 
-    var challenges []challenge
+    var challenges []Challenge
     for rows.Next() {
-        var c challenge
+        var c Challenge
 
-        err := rows.Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status)
+        err := rows.Scan(&c.ID, &c.ChallengerID, &c.ChallengeeID, &c.Type, &c.MatchID, &c.Points, &c.Condition, &c.Status)
         if err != nil { log.Panic(err) }
 
         challenges = append(challenges, c)
@@ -46,39 +46,39 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
         hometeam := ""
         awayteam := ""
         username := ""
-        m := getMatch(b.db, "id=$1", c.matchid)
+        m := getMatch(b.db, "id=$1", c.MatchID)
 
-        if strconv.Itoa(c.challengerid) == uid {
-            challengee, _ := b.session.User(strconv.Itoa(c.challengeeid))
+        if strconv.Itoa(c.ChallengerID) == uid {
+            challengee, _ := b.session.User(strconv.Itoa(c.ChallengeeID))
             username = challengee.Username
 
-            if c.condition == ChallengeConditionWinnerHome {
-                hometeam = "[" + m.hometeam + "]"
-                awayteam = m.awayteam
+            if c.Condition == ChallengeConditionWinnerHome {
+                hometeam = "[" + m.HomeTeam + "]"
+                awayteam = m.AwayTeam
             } else {
-                hometeam = m.hometeam
-                awayteam = "[" + m.awayteam + "]"
+                hometeam = m.HomeTeam
+                awayteam = "[" + m.AwayTeam + "]"
             }
         } else {
-            challenger, _ := b.session.User(strconv.Itoa(c.challengerid))
+            challenger, _ := b.session.User(strconv.Itoa(c.ChallengerID))
             username = challenger.Username
 
-            if c.condition == ChallengeConditionWinnerAway {
-                hometeam = "[" + m.hometeam + "]"
-                awayteam = m.awayteam
+            if c.Condition == ChallengeConditionWinnerAway {
+                hometeam = "[" + m.HomeTeam + "]"
+                awayteam = m.AwayTeam
             } else {
-                hometeam = m.hometeam
-                awayteam = "[" + m.awayteam + "]"
+                hometeam = m.HomeTeam
+                awayteam = "[" + m.AwayTeam + "]"
             }
         }
 
-        msg = fmt.Sprintf("%v vs %v för %v poäng", hometeam, awayteam, c.points)
-        desc = fmt.Sprintf("%v - %v", username, m.date)
+        msg = fmt.Sprintf("%v vs %v för %v poäng", hometeam, awayteam, c.Points)
+        desc = fmt.Sprintf("%v - %v", username, m.Date)
 
         options = append(options, dg.SelectMenuOption{
             Label: msg,
             Description: desc,
-            Value: fmt.Sprintf("%v", c.id),
+            Value: fmt.Sprintf("%v", c.ID),
         })
     }
 
@@ -97,29 +97,29 @@ func (b *botHolder) chickenCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, NewMsg, "Dina utmaningar.", components)
 }
 
-func (b *botHolder) chickenChallengeSelected(i *dg.InteractionCreate) {
+func (b *Bot) chickenChallengeSelected(i *dg.InteractionCreate) {
     interactionUID, _ := strconv.Atoi(getInteractUID(i))
     vals := getValuesOrRespond(b.session, i, UpdateMsg)
     if vals == nil { return }
 
     cid := vals[0]
     c := getChallenge(b.db, "id=$1", cid)
-    m := getMatch(b.db, "id=$1", c.matchid)
+    m := getMatch(b.db, "id=$1", c.MatchID)
 
-    contactID := c.challengerid
-    requesterIsChallenger := interactionUID == c.challengerid;
+    contactID := c.ChallengerID
+    requesterIsChallenger := interactionUID == c.ChallengerID;
     if requesterIsChallenger {
-        contactID = c.challengeeid
+        contactID = c.ChallengeeID
     }
 
     // Error checking
     errors := []CommandError{}
 
-    if (c.challengerid != interactionUID && c.challengeeid != interactionUID) {
+    if (c.ChallengerID != interactionUID && c.ChallengeeID != interactionUID) {
         errors = append(errors, ErrorNoRights)
     }
 
-    if m.date <= time.Now().Format(DB_TIME_LAYOUT) {
+    if m.Date <= time.Now().Format(DB_TIME_LAYOUT) {
         errors = append(errors, ErrorMatchStarted)
     }
 
@@ -140,11 +140,11 @@ func (b *botHolder) chickenChallengeSelected(i *dg.InteractionCreate) {
                     Options: []dg.SelectMenuOption{
                         {
                             Label: "Acceptera",
-                            Value: fmt.Sprintf("accept_%v", c.id),
+                            Value: fmt.Sprintf("accept_%v", c.ID),
                         },
                         {
                             Label: "Neka",
-                            Value: fmt.Sprintf("decline_%v", c.id),
+                            Value: fmt.Sprintf("decline_%v", c.ID),
                         },
                     },
                 },
@@ -154,19 +154,19 @@ func (b *botHolder) chickenChallengeSelected(i *dg.InteractionCreate) {
 
     user, _ := b.session.User(getInteractUID(i))
     msg := fmt.Sprintf("**%v** vill avbryta om **%v** vs **%v** för **%v** poäng, vad vill du göra?",
-                        user.Username, m.hometeam, m.awayteam, c.points)
+                        user.Username, m.HomeTeam, m.AwayTeam, c.Points)
 
-    if c.status == ChallengeStatusSent {
-        _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusDeclined, c.id)
+    if c.Status == ChallengeStatusSent {
+        _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusDeclined, c.ID)
         if err != nil { log.Panic(err) }
 
-        _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengerid)
+        _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.Points, c.ChallengerID)
         if err != nil { log.Panic(err) }
 
         addCompInteractionResponse(b.session, i, UpdateMsg, "Utmaningen borttagen.", []dg.MessageComponent{})
 
         msg = fmt.Sprintf("**%v** avbröt utmaningen om **%v** vs **%v** för **%v** poäng.",
-                            user.Username, m.hometeam, m.awayteam, c.points)
+                            user.Username, m.HomeTeam, m.AwayTeam, c.Points)
 
         b.session.ChannelMessageSendComplex(channelID.ID, &dg.MessageSend{
             Content: msg,
@@ -176,7 +176,7 @@ func (b *botHolder) chickenChallengeSelected(i *dg.InteractionCreate) {
         return
     }
 
-    _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusRequestForfeit, c.id)
+    _, err := b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusRequestForfeit, c.ID)
     if err != nil { log.Panic(err) }
 
     addCompInteractionResponse(b.session, i, UpdateMsg, "Skickat förfrågan om att avbryta utmaningen.", []dg.MessageComponent{})
@@ -187,7 +187,7 @@ func (b *botHolder) chickenChallengeSelected(i *dg.InteractionCreate) {
     })
 }
 
-func (b *botHolder) chickenAnswer(i *dg.InteractionCreate) {
+func (b *Bot) chickenAnswer(i *dg.InteractionCreate) {
     vals := i.MessageComponentData().Values
 
     splitted := strings.Split(vals[0], "_")
@@ -195,17 +195,17 @@ func (b *botHolder) chickenAnswer(i *dg.InteractionCreate) {
     cid := splitted[1]
 
     c := getChallenge(b.db, "id=$1", cid)
-    m := getMatch(b.db, "id=$1", c.matchid)
+    m := getMatch(b.db, "id=$1", c.MatchID)
 
     // Security checks
     errors := []CommandError{}
 
     interactionUID, _ := strconv.Atoi(getInteractUID(i))
-    if (c.challengerid != interactionUID && c.challengeeid != interactionUID) {
+    if (c.ChallengerID != interactionUID && c.ChallengeeID != interactionUID) {
         errors = append(errors, ErrorNoRights)
     }
 
-    if m.date <= time.Now().Format(DB_TIME_LAYOUT) {
+    if m.Date <= time.Now().Format(DB_TIME_LAYOUT) {
         errors = append(errors, ErrorMatchStarted)
     }
 
@@ -221,9 +221,9 @@ func (b *botHolder) chickenAnswer(i *dg.InteractionCreate) {
         msgChicken = fmt.Sprintf("Din förfrågan om att fega ur har blivit accepterad.")
         msgAcceptor = fmt.Sprintf("Skickar bekräftelse till fegisen.")
 
-        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengerid)
+        _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.Points, c.ChallengerID)
         if err != nil { log.Panic(err) }
-        _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.points, c.challengeeid)
+        _, err = b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", c.Points, c.ChallengeeID)
         if err != nil { log.Panic(err) }
         _, err = b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusForfeited, cid)
         if err != nil { log.Panic(err) }
@@ -235,10 +235,10 @@ func (b *botHolder) chickenAnswer(i *dg.InteractionCreate) {
     }
 
     chickenID, acceptorID := 0, getInteractUID(i)
-    if acceptorID == strconv.Itoa(c.challengerid) {
-        chickenID = c.challengeeid
+    if acceptorID == strconv.Itoa(c.ChallengerID) {
+        chickenID = c.ChallengeeID
     } else {
-        chickenID = c.challengerid
+        chickenID = c.ChallengerID
     }
 
     channelID, _ := b.session.UserChannelCreate(strconv.Itoa(chickenID))

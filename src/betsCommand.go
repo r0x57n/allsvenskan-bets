@@ -10,7 +10,7 @@ import (
     dg "github.com/bwmarrin/discordgo"
 )
 
-func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
+func (b *Bot) listBetsCommand(i *dg.InteractionCreate) {
     // Get options and parse
     options := getOptionsOrRespond(b.session, i, NewMsg)
     if options == nil { return }
@@ -23,13 +23,13 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
 
     desc := ""
     userToView := getUser(b.db, fmt.Sprint(uid))
-    userNotViewingThemselves := userToView.uid != getUserFromInteraction(b.db, i).uid
+    userNotViewingThemselves := userToView.UserID != getUserFromInteraction(b.db, i).UserID
 
     // Error checking
     errors := []CommandError{}
-    if !userToView.viewable && userNotViewingThemselves {
+    if !userToView.Viewable && userNotViewingThemselves {
         errors = append(errors, ErrorUserNotViewable)
-    } else if !userToView.viewable && !userNotViewingThemselves {
+    } else if !userToView.Viewable && !userNotViewingThemselves {
         desc = "Andra användare kan inte se dina vadslagningar.\n"
     }
 
@@ -62,18 +62,18 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     comingBets, wonBets, lostBets := "", "", ""
 
     for rows.Next() {
-        var bet bet
-        var m match
+        var bet Bet
+        var m Match
 
-        rows.Scan(&bet.homescore, &bet.awayscore, &bet.matchid, &bet.status, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore)
+        rows.Scan(&bet.HomeScore, &bet.AwayScore, &bet.MatchID, &bet.Status, &m.HomeTeam, &m.AwayTeam, &m.Date, &m.HomeScore, &m.AwayScore)
 
-        switch bet.status {
+        switch bet.Status {
             case BetStatusLost:
-                lostBets += fmt.Sprintf("%v - %v [%v-%v] (%v-%v)\n", m.hometeam, m.awayteam, m.homescore, m.awayscore, bet.homescore, bet.awayscore)
+                lostBets += fmt.Sprintf("%v - %v [%v-%v] (%v-%v)\n", m.HomeTeam, m.AwayTeam, m.HomeScore, m.AwayScore, bet.HomeScore, bet.AwayScore)
             case BetStatusWon, BetStatusAlmostWon:
-                wonBets += fmt.Sprintf("%v - %v [%v-%v] (%v-%v)\n", m.hometeam, m.awayteam, m.homescore, m.awayscore, bet.homescore, bet.awayscore)
+                wonBets += fmt.Sprintf("%v - %v [%v-%v] (%v-%v)\n", m.HomeTeam, m.AwayTeam, m.HomeScore, m.AwayScore, bet.HomeScore, bet.AwayScore)
             case BetStatusUnhandled:
-                matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
+                matchDate, err := time.Parse(DB_TIME_LAYOUT, m.Date)
                 if err != nil { log.Printf("Couldn't parse date: %v", err) }
                 daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)
                 played := ""
@@ -85,7 +85,7 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
                 } else {
                     played = fmt.Sprintf("om %v dagar", daysUntilMatch)
                 }
-                comingBets += fmt.Sprintf("%v (**%v**) - %v (**%v**), %v.\n", m.hometeam, bet.homescore, m.awayteam, bet.awayscore, played)
+                comingBets += fmt.Sprintf("%v (**%v**) - %v (**%v**), %v.\n", m.HomeTeam, bet.HomeScore, m.AwayTeam, bet.AwayScore, played)
             default:
                 addErrorResponse(b.session, i, NewMsg, "Got unidentifiable b.status in listBetsCommand.")
                 return
@@ -107,48 +107,48 @@ func (b *botHolder) listBetsCommand(i *dg.InteractionCreate) {
     defer rows.Close()
 
     type challAndMatch struct {
-        c challenge
-        m match
+        c Challenge
+        m Match
     }
 
     challenges := "-"
 
     for rows.Next() {
-        var c challenge
-        var m match
+        var c Challenge
+        var m Match
 
-        rows.Scan(&c.challengerid, &c.challengeeid, &c.points, &c.condition, &c.winner,
-                  &m.hometeam, &m.awayteam)
+        rows.Scan(&c.ChallengerID, &c.ChallengeeID, &c.Points, &c.Condition, &c.Winner,
+                  &m.HomeTeam, &m.AwayTeam)
 
-        challenger, err := b.session.User(strconv.Itoa(c.challengerid))
+        challenger, err := b.session.User(strconv.Itoa(c.ChallengerID))
         if err != nil { log.Panic(err) }
-        challengee, err := b.session.User(strconv.Itoa(c.challengeeid))
+        challengee, err := b.session.User(strconv.Itoa(c.ChallengeeID))
         if err != nil { log.Panic(err) }
 
         winOrLose := "vinna"
-        if c.condition == ChallengeConditionWinnerAway {
+        if c.Condition == ChallengeConditionWinnerAway {
             winOrLose = "förlora"
         }
 
 
         winner := ""
-        if c.winner != 0 {
-            userIsChallenger := fmt.Sprint(getUserFromInteraction(b.db, i).uid) == challenger.ID
+        if c.Winner != 0 {
+            userIsChallenger := fmt.Sprint(getUserFromInteraction(b.db, i).UserID) == challenger.ID
 
             winner = "[+]"
-            if userIsChallenger && c.winner == ChallengeWinnerChallengee {
+            if userIsChallenger && c.Winner == ChallengeWinnerChallengee {
                 winner = "[-]"
-            } else if c.winner == ChallengeWinnerNone {
+            } else if c.Winner == ChallengeWinnerNone {
                 winner = "[/]"
             }
 
             if challenges == "-" { challenges = "" }
             challenges += fmt.Sprintf("**%v** utmanade **%v** om att **%v** skulle %v mot **%v** för **%v** poäng. %v\n",
-                                        challenger.Username, challengee.Username, m.hometeam, winOrLose, m.awayteam, c.points, winner)
+                                        challenger.Username, challengee.Username, m.HomeTeam, winOrLose, m.AwayTeam, c.Points, winner)
         } else {
             if comingBets == "-" { comingBets = "" }
             comingBets += fmt.Sprintf("**%v** utmanar **%v** om att **%v** ska %v mot **%v** för **%v** poäng. %v\n",
-                                       challenger.Username, challengee.Username, m.hometeam, winOrLose, m.awayteam, c.points, winner)
+                                       challenger.Username, challengee.Username, m.HomeTeam, winOrLose, m.AwayTeam, c.Points, winner)
         }
     }
 

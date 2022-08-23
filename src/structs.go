@@ -6,7 +6,7 @@ import (
 	dg "github.com/bwmarrin/discordgo"
 )
 
-type botHolder struct {
+type Bot struct {
     token string
     appID string
     guildID string
@@ -16,50 +16,53 @@ type botHolder struct {
     session *dg.Session
     db *sql.DB
     cron *cron.Cron
-    commands []command
+    commands []Command
     commandHandlers map[string]func(s *dg.Session, i *dg.InteractionCreate)
     componentHandlers map[string]func(s *dg.Session, i *dg.InteractionCreate)
 }
 
-type dbInfo struct {
-    host string
-    port int
-    user string
-    password string
-    name  string
+type InfoDB struct {
+    Host string
+    Port int
+    User string
+    Password string
+    Name  string
 }
 
-type match struct {
-	id int
-	hometeam string
-	awayteam string
-	date string
-	homescore int
-	awayscore int
-    round int
-	finished bool
+type Match struct {
+	ID int
+	HomeTeam string
+	AwayTeam string
+	Date string
+	HomeScore int
+	AwayScore int
+    Round int
+	Finished bool
 }
 
-type bet struct {
-	id int
-	uid int
-	matchid int
-	homescore int
-	awayscore int
-    status BetStatus
-    round int
+type MatchSummary struct {
 }
 
-type challenge struct {
-    id int
-    challengerid int
-    challengeeid int
-    typ ChallengeType
-    matchid int
-    points int
-    condition ChallengeCondition
-    status ChallengeStatus
-    winner ChallengeWinner
+type Bet struct {
+	ID int
+	UserID int
+	MatchID int
+	HomeScore int
+	AwayScore int
+    Status BetStatus
+    Round int
+}
+
+type Challenge struct {
+    ID int
+    ChallengerID int
+    ChallengeeID int
+    Type ChallengeType
+    MatchID int
+    Points int
+    Condition ChallengeCondition
+    Status ChallengeStatus
+    Winner ChallengeWinner
 }
 
 type Round struct {
@@ -72,18 +75,10 @@ type Round struct {
     BotFive map[string]int `json:"botFive"`
 }
 
-type user struct {
-    uid int
-    points int
-    bank string
-    viewable bool
-    interactable bool
-}
-
-type command struct {
-    name string
-    description string
-    category CommandCategory
-    admin bool
-    options []*dg.ApplicationCommandOption
+type User struct {
+    UserID int
+    Points int
+    Bank string
+    Viewable bool
+    Interactable bool
 }

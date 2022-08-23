@@ -32,13 +32,13 @@ func getInteractUID(i *dg.InteractionCreate) string {
     return uid
 }
 
-func getUserFromInteraction(db *sql.DB, i *dg.InteractionCreate) user {
+func getUserFromInteraction(db *sql.DB, i *dg.InteractionCreate) User {
     uid := fmt.Sprint(getInteractUID(i))
     return getUser(db, uid)
 }
 
-func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m match) bool {
-    matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
+func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m Match) bool {
+    matchDate, err := time.Parse(DB_TIME_LAYOUT, m.Date)
 	if err != nil {
         addErrorResponse(s, i, NewMsg, "Couldn't translate match date from database...")
         return true
@@ -53,9 +53,9 @@ func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m match) bool {
    We take care to let the SQL package prepare the statements, see: https://go.dev/doc/database/sql-injection
 */
 
-func connectDB(i dbInfo) *sql.DB {
+func connectDB(i InfoDB) *sql.DB {
     dbInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-                        i.host, i.port, i.user, i.password, i.name)
+                        i.Host, i.Port, i.User, i.Password, i.Name)
     db, err := sql.Open(DB_TYPE, dbInfo)
     if err != nil {
         log.Fatalf("Couldn't connect to database: %v", err)
@@ -64,11 +64,11 @@ func connectDB(i dbInfo) *sql.DB {
     return db
 }
 
-func getUser(db *sql.DB, uid string) user {
-    var u user
+func getUser(db *sql.DB, uid string) User {
+    var u User
 
 	err := db.QueryRow("SELECT uid, points, bank, viewable, interactable FROM users WHERE uid=$1", uid).
-              Scan(&u.uid, &u.points, &u.bank, &u.viewable, &u.interactable)
+              Scan(&u.UserID, &u.Points, &u.Bank, &u.Viewable, &u.Interactable)
 
 	if err != nil {
         if err == sql.ErrNoRows {
@@ -96,8 +96,8 @@ func getCurrentRound(db *sql.DB) int {
     return round
 }
 
-func getMatches(db *sql.DB, where string, args ...any) *[]match {
-    var matches []match
+func getMatches(db *sql.DB, where string, args ...any) *[]Match {
+    var matches []Match
 
     rows, err := db.Query("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished FROM matches WHERE " + where, args...)
     if err != nil {
@@ -108,34 +108,34 @@ func getMatches(db *sql.DB, where string, args ...any) *[]match {
 	defer rows.Close()
 
 	for rows.Next() {
-		var m match
-		if err := rows.Scan(&m.id, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore, &m.finished); err != nil { log.Panic(err) }
+		var m Match
+		if err := rows.Scan(&m.ID, &m.HomeTeam, &m.AwayTeam, &m.Date, &m.HomeScore, &m.AwayScore, &m.Finished); err != nil { log.Panic(err) }
 		matches = append(matches, m)
 	}
 
     return &matches
 }
 
-func getMatchesFromRows(rows *sql.Rows) *[]match {
-    var matches []match
+func getMatchesFromRows(rows *sql.Rows) *[]Match {
+    var matches []Match
 
 	for rows.Next() {
-		var m match
-		if err := rows.Scan(&m.id, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore, &m.finished); err != nil { log.Panic(err) }
+		var m Match
+		if err := rows.Scan(&m.ID, &m.HomeTeam, &m.AwayTeam, &m.Date, &m.HomeScore, &m.AwayScore, &m.Finished); err != nil { log.Panic(err) }
 		matches = append(matches, m)
 	}
 
     return &matches
 }
 
-func getMatch(db *sql.DB, where string, args ...any) match {
-    var m match
+func getMatch(db *sql.DB, where string, args ...any) Match {
+    var m Match
 
 	err := db.QueryRow("SELECT id, hometeam, awayteam, date, homescore, awayscore, finished, round FROM matches WHERE " + where, args...).
-              Scan(&m.id, &m.hometeam, &m.awayteam, &m.date, &m.homescore, &m.awayscore, &m.finished, &m.round)
+              Scan(&m.ID, &m.HomeTeam, &m.AwayTeam, &m.Date, &m.HomeScore, &m.AwayScore, &m.Finished, &m.Round)
 	if err != nil {
         if err == sql.ErrNoRows {
-            return match { id: -1 }
+            return Match { ID: -1 }
         } else {
             log.Panic(err)
         }
@@ -144,20 +144,20 @@ func getMatch(db *sql.DB, where string, args ...any) match {
     return m
 }
 
-func getBetsFromRows(rows *sql.Rows) *[]bet {
-    var bets []bet
+func getBetsFromRows(rows *sql.Rows) *[]Bet {
+    var bets []Bet
 
 	for rows.Next() {
-        var b bet
-		if err := rows.Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status, &b.round); err != nil { log.Panic(err) }
+        var b Bet
+		if err := rows.Scan(&b.ID, &b.UserID, &b.MatchID, &b.HomeScore, &b.AwayScore, &b.Status, &b.Round); err != nil { log.Panic(err) }
 		bets = append(bets, b)
 	}
 
     return &bets
 }
 
-func getBets(db *sql.DB, where string, args ...any) *[]bet {
-    var bets []bet
+func getBets(db *sql.DB, where string, args ...any) *[]Bet {
+    var bets []Bet
 
 	rows, err := db.Query("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE " + where, args...)
     if err != nil {
@@ -168,22 +168,22 @@ func getBets(db *sql.DB, where string, args ...any) *[]bet {
 	defer rows.Close()
 
 	for rows.Next() {
-        var b bet
-		if err := rows.Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status); err != nil { log.Panic(err) }
+        var b Bet
+		if err := rows.Scan(&b.ID, &b.UserID, &b.MatchID, &b.HomeScore, &b.AwayScore, &b.Status); err != nil { log.Panic(err) }
 		bets = append(bets, b)
 	}
 
     return &bets
 }
 
-func getBet(db *sql.DB, where string, args ...any) bet {
-    var b bet
+func getBet(db *sql.DB, where string, args ...any) Bet {
+    var b Bet
 
 	err := db.QueryRow("SELECT id, uid, matchid, homescore, awayscore, status FROM bets WHERE " + where, args...).
-              Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status)
+              Scan(&b.ID, &b.UserID, &b.MatchID, &b.HomeScore, &b.AwayScore, &b.Status)
 	if err != nil {
         if err == sql.ErrNoRows {
-            return bet { id: -1 }
+            return Bet { ID: -1 }
         } else {
             log.Panic(err)
         }
@@ -192,8 +192,8 @@ func getBet(db *sql.DB, where string, args ...any) bet {
     return b
 }
 
-func getChallenges(db *sql.DB, where string, args ...any) *[]challenge {
-    var challenges []challenge
+func getChallenges(db *sql.DB, where string, args ...any) *[]Challenge {
+    var challenges []Challenge
 
 	rows, err := db.Query("SELECT id, challengerid, challengeeid, type, matchid, points, condition, status FROM challenges WHERE " + where, args...)
     if err != nil {
@@ -204,22 +204,22 @@ func getChallenges(db *sql.DB, where string, args ...any) *[]challenge {
 	defer rows.Close()
 
 	for rows.Next() {
-        var c challenge
-		if err := rows.Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status); err != nil { log.Panic(err) }
+        var c Challenge
+		if err := rows.Scan(&c.ID, &c.ChallengerID, &c.ChallengeeID, &c.Type, &c.MatchID, &c.Points, &c.Condition, &c.Status); err != nil { log.Panic(err) }
 		challenges = append(challenges, c)
 	}
 
     return &challenges
 }
 
-func getChallenge(db *sql.DB, where string, args ...any) challenge {
-    var c challenge
+func getChallenge(db *sql.DB, where string, args ...any) Challenge {
+    var c Challenge
 
 	err := db.QueryRow("SELECT id, challengerid, challengeeid, type, matchid, points, condition, status FROM challenges WHERE " + where, args...).
-              Scan(&c.id, &c.challengerid, &c.challengeeid, &c.typ, &c.matchid, &c.points, &c.condition, &c.status)
+              Scan(&c.ID, &c.ChallengerID, &c.ChallengeeID, &c.Type, &c.MatchID, &c.Points, &c.Condition, &c.Status)
 	if err != nil {
         if err == sql.ErrNoRows {
-            return challenge { id: -1 }
+            return Challenge { ID: -1 }
         } else {
             log.Panic(err)
         }
@@ -242,9 +242,9 @@ func getOptionsOutOfRows(rows *sql.Rows, addToValue ...string) *[]dg.SelectMenuO
 	}
 
     for _, m := range matches {
-        optionValue := strconv.Itoa(m.id)
+        optionValue := strconv.Itoa(m.ID)
 
-        matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
+        matchDate, err := time.Parse(DB_TIME_LAYOUT, m.Date)
         if err != nil { log.Printf("Couldn't parse date: %v", err) }
 
         daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)
@@ -256,7 +256,7 @@ func getOptionsOutOfRows(rows *sql.Rows, addToValue ...string) *[]dg.SelectMenuO
             description = fmt.Sprintf("om %v dagar (%v)", daysUntilMatch, matchDate.Format(MSG_TIME_LAYOUT))
         }
 
-        label := fmt.Sprintf("%v vs %v", m.hometeam, m.awayteam)
+        label := fmt.Sprintf("%v vs %v", m.HomeTeam, m.AwayTeam)
 
         options = append(options, dg.SelectMenuOption{
             Label: label,
@@ -283,17 +283,17 @@ func getCurrentMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMe
 	}
 
     for _, m := range matches {
-        label := fmt.Sprintf("%v vs %v", m.hometeam, m.awayteam)
+        label := fmt.Sprintf("%v vs %v", m.HomeTeam, m.AwayTeam)
 
         // option value (adding metadata)
-        optionValue := strconv.Itoa(m.id)
+        optionValue := strconv.Itoa(m.ID)
 
         if len(addToValue) == 1 {
             optionValue = addToValue[0] + "_" + optionValue
         }
 
         // option description
-        matchDate, err := time.Parse(DB_TIME_LAYOUT, m.date)
+        matchDate, err := time.Parse(DB_TIME_LAYOUT, m.Date)
         if err != nil { log.Printf("Couldn't parse date: %v", err) }
 
         daysUntilMatch := math.Round(time.Until(matchDate).Hours() / 24)

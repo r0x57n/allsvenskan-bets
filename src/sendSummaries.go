@@ -10,7 +10,7 @@ import (
     _ "github.com/lib/pq"
 )
 
-func (b *botHolder) sendSummaries() {
+func (b *Bot) sendSummaries() {
 	today := time.Now().Format(DB_TIME_LAYOUT)
     rows, err := b.db.Query("SELECT id FROM matches " +
                             "WHERE date<=$1 AND finished=$2 AND summarised=$3", today, true, false)
@@ -33,16 +33,16 @@ func (b *botHolder) sendSummaries() {
         m := getMatch(b.db, "id=$1", mid)
 
         matchInfo := ""
-        if m.finished {
-            matchInfo = fmt.Sprintf("%v - %v\n", m.hometeam, m.awayteam)
-            matchInfo += fmt.Sprintf("Resultat: %v - %v\n\n", m.homescore, m.awayscore)
+        if m.Finished {
+            matchInfo = fmt.Sprintf("%v - %v\n", m.HomeTeam, m.AwayTeam)
+            matchInfo += fmt.Sprintf("Resultat: %v - %v\n\n", m.HomeScore, m.AwayScore)
         }
 
         // all bets
         betRows, err := b.db.Query("SELECT b.id, b.uid, b.matchid, b.homescore, b.awayscore, b.status, b.round " +
                                 "FROM bets AS b " +
                                 "JOIN users AS u ON u.uid=b.uid " +
-                                "WHERE b.matchid=$1 AND u.viewable=$2", m.id, true)
+                                "WHERE b.matchid=$1 AND u.viewable=$2", m.ID, true)
         if err != nil { log.Panic(err) }
         bets := *getBetsFromRows(betRows)
 
@@ -52,24 +52,24 @@ func (b *botHolder) sendSummaries() {
         }
 
         for _, bet := range bets {
-            user, _ := b.session.User(strconv.Itoa(bet.uid))
+            user, _ := b.session.User(strconv.Itoa(bet.UserID))
             username := ""
             if user == nil {
-                username = strconv.Itoa(bet.uid)
+                username = strconv.Itoa(bet.UserID)
             } else {
                 username = user.Username
             }
 
-            if m.finished {
-                won := bet.homescore == m.homescore && bet.awayscore == m.awayscore
+            if m.Finished {
+                won := bet.HomeScore == m.HomeScore && bet.AwayScore == m.AwayScore
 
                 if won {
-                    msgBets += fmt.Sprintf("**%v gissade på %v - %v**\n", username, bet.homescore, bet.awayscore)
+                    msgBets += fmt.Sprintf("**%v gissade på %v - %v**\n", username, bet.HomeScore, bet.AwayScore)
                 } else {
-                    msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.homescore, bet.awayscore)
+                    msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.HomeScore, bet.AwayScore)
                 }
             } else {
-                msgBets += fmt.Sprintf("%v gissar på %v - %v\n", username, bet.homescore, bet.awayscore)
+                msgBets += fmt.Sprintf("%v gissar på %v - %v\n", username, bet.HomeScore, bet.AwayScore)
             }
         }
 
@@ -83,35 +83,35 @@ func (b *botHolder) sendSummaries() {
         }
 
         for _, c := range challenges {
-            userChallenger, _ := b.session.User(strconv.Itoa(c.challengerid))
-            userChallengee, _ := b.session.User(strconv.Itoa(c.challengeeid))
+            userChallenger, _ := b.session.User(strconv.Itoa(c.ChallengerID))
+            userChallengee, _ := b.session.User(strconv.Itoa(c.ChallengeeID))
             usernameChallenger := ""
             usernameChallengee := ""
             if userChallenger == nil {
-                usernameChallenger = strconv.Itoa(c.challengerid)
+                usernameChallenger = strconv.Itoa(c.ChallengerID)
             } else {
                 usernameChallenger = userChallenger.Username
             }
 
             if userChallengee == nil {
-                usernameChallengee = strconv.Itoa(c.challengeeid)
+                usernameChallengee = strconv.Itoa(c.ChallengeeID)
             } else {
                 usernameChallengee = userChallengee.Username
             }
 
             winner := ""
-            if c.condition == ChallengeConditionWinnerHome {
-                winner = m.hometeam
+            if c.Condition == ChallengeConditionWinnerHome {
+                winner = m.HomeTeam
             } else {
-                winner = m.awayteam
+                winner = m.AwayTeam
             }
 
-            if m.finished {
+            if m.Finished {
                 msgChalls += fmt.Sprintf("%v utmanade %v om att %v skulle vinna för %v poäng\n",
-                                        usernameChallenger, usernameChallengee, winner, c.points)
+                                        usernameChallenger, usernameChallengee, winner, c.Points)
             } else {
                 msgChalls += fmt.Sprintf("%v utmanar %v om att %v ska vinna för %v poäng\n",
-                                        usernameChallenger, usernameChallengee, winner, c.points)
+                                        usernameChallenger, usernameChallengee, winner, c.Points)
             }
         }
 

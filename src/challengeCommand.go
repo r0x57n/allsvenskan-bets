@@ -31,7 +31,7 @@ import (
     _ "github.com/lib/pq"
 )
 
-func (b *botHolder) challengeCommand(i *dg.InteractionCreate) {
+func (b *Bot) challengeCommand(i *dg.InteractionCreate) {
     msgOptions := getOptionsOrRespond(b.session, i, NewMsg)
     if msgOptions == nil { return }
 
@@ -48,15 +48,15 @@ func (b *botHolder) challengeCommand(i *dg.InteractionCreate) {
 
     // Security checks
     errors := []CommandError{}
-    if !challengeeUser.interactable {
+    if !challengeeUser.Interactable {
         errors = append(errors, ErrorOtherNotInteractable)
     }
 
-    if !getUserFromInteraction(b.db, i).interactable {
+    if !getUserFromInteraction(b.db, i).Interactable {
         errors = append(errors, ErrorSelfNotInteractable)
     }
 
-    if strconv.Itoa(challengeeUser.uid) == interactionUID {
+    if strconv.Itoa(challengeeUser.UserID) == interactionUID {
         errors = append(errors, ErrorInteractingWithSelf)
     }
 
@@ -86,7 +86,7 @@ func (b *botHolder) challengeCommand(i *dg.InteractionCreate) {
                                                 interactionUID, challengee.ID,
                                                 matchid,
                                                 ChallengeStatusDeclined, ChallengeStatusForfeited)
-        if existingChallenge.id == -1 {
+        if existingChallenge.ID == -1 {
             realOptions = append(realOptions, option)
         }
     }
@@ -108,7 +108,7 @@ func (b *botHolder) challengeCommand(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, NewMsg, msg, components)
 }
 
-func (b *botHolder) challSelectWinner(i *dg.InteractionCreate) {
+func (b *Bot) challSelectWinner(i *dg.InteractionCreate) {
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
     value := values[0]
@@ -132,11 +132,11 @@ func (b *botHolder) challSelectWinner(i *dg.InteractionCreate) {
                     Placeholder: "Välj ett lag...",
                     Options: []dg.SelectMenuOption{
                         {
-                            Label: m.hometeam,
+                            Label: m.HomeTeam,
                             Value: val + "hometeam",
                         },
                         {
-                            Label: m.awayteam,
+                            Label: m.AwayTeam,
                             Value: val + "awayteam",
                         },
                     },
@@ -149,7 +149,7 @@ func (b *botHolder) challSelectWinner(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, UpdateMsg, msg, components)
 }
 
-func (b *botHolder) challSelectPoints(i *dg.InteractionCreate) {
+func (b *Bot) challSelectPoints(i *dg.InteractionCreate) {
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
 
@@ -160,8 +160,8 @@ func (b *botHolder) challSelectPoints(i *dg.InteractionCreate) {
     interactionUID := getInteractUID(i)
 
     var (
-        challengerPoints = getUser(b.db, interactionUID).points
-        challengeePoints = getUser(b.db, challengee.ID).points
+        challengerPoints = getUser(b.db, interactionUID).Points
+        challengeePoints = getUser(b.db, challengee.ID).Points
         maxPoints = -1
     )
 
@@ -193,7 +193,7 @@ func (b *botHolder) challSelectPoints(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, UpdateMsg, msg, components)
 }
 
-func (b *botHolder) challAcceptDiscard(i *dg.InteractionCreate) {
+func (b *Bot) challAcceptDiscard(i *dg.InteractionCreate) {
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
     splitted := strings.Split(values[0], "_")
@@ -206,16 +206,16 @@ func (b *botHolder) challAcceptDiscard(i *dg.InteractionCreate) {
     loserTeam := ""
     points := splitted[3]
 
-    var m match
-    err = b.db.QueryRow("SELECT hometeam, awayteam FROM matches WHERE id=$1", matchid).Scan(&m.hometeam, &m.awayteam)
+    var m Match
+    err = b.db.QueryRow("SELECT hometeam, awayteam FROM matches WHERE id=$1", matchid).Scan(&m.HomeTeam, &m.AwayTeam)
     if err != nil { log.Panic(err) }
 
     if winnerTeam == "hometeam" {
-        winnerTeam = m.hometeam
-        loserTeam = m.awayteam
+        winnerTeam = m.HomeTeam
+        loserTeam = m.AwayTeam
     } else {
-        winnerTeam = m.awayteam
-        loserTeam = m.hometeam
+        winnerTeam = m.AwayTeam
+        loserTeam = m.HomeTeam
     }
 
     options := []dg.SelectMenuOption{
@@ -248,7 +248,7 @@ func (b *botHolder) challAcceptDiscard(i *dg.InteractionCreate) {
     addCompInteractionResponse(b.session, i, UpdateMsg, msg, components)
 }
 
-func (b *botHolder) challAcceptDiscardDo(i *dg.InteractionCreate) {
+func (b *Bot) challAcceptDiscardDo(i *dg.InteractionCreate) {
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
     value := values[0]
@@ -291,15 +291,15 @@ func (b *botHolder) challAcceptDiscardDo(i *dg.InteractionCreate) {
 
     // Security checks
     errors := []CommandError{}
-    if !challengeeUser.interactable {
+    if !challengeeUser.Interactable {
         errors = append(errors, ErrorOtherNotInteractable)
     }
 
-    if strconv.Itoa(challengeeUser.uid) == interactionUID {
+    if strconv.Itoa(challengeeUser.UserID) == interactionUID {
         errors = append(errors, ErrorInteractingWithSelf)
     }
 
-    if existingChallenge.id != -1 {
+    if existingChallenge.ID != -1 {
         errors = append(errors, ErrorIdenticalChallenge)
     }
 
@@ -311,7 +311,7 @@ func (b *botHolder) challAcceptDiscardDo(i *dg.InteractionCreate) {
         errors = append(errors, ErrorMatchStarted)
     }
 
-    if challengeeUser.points < pointsInt || challengerUser.points < pointsInt {
+    if challengeeUser.Points < pointsInt || challengerUser.Points < pointsInt {
         errors = append(errors, ErrorNotEnoughPoints)
     }
 
@@ -339,15 +339,15 @@ func (b *botHolder) challAcceptDiscardDo(i *dg.InteractionCreate) {
     b.sendChallenge(interactionUID, challengee.ID, int(insertedCID), points)
 }
 
-func (b *botHolder) sendChallenge(challengerID string, challengeeid string, cid int, points string) {
-    var m match
-    var c challenge
+func (b *Bot) sendChallenge(challengerID string, challengeeid string, cid int, points string) {
+    var m Match
+    var c Challenge
     err := b.db.QueryRow("SELECT m.hometeam, m.awayteam, m.date, c.id, c.condition FROM challenges AS c " +
                          "JOIN matches AS m ON m.id = c.matchid " +
-                         "WHERE c.id=$1", cid).Scan(&m.hometeam, &m.awayteam, &m.date, &c.id, &c.condition)
+                         "WHERE c.id=$1", cid).Scan(&m.HomeTeam, &m.AwayTeam, &m.Date, &c.ID, &c.Condition)
     if err != nil { log.Panic(err) }
 
-    _, err = b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusSent, c.id)
+    _, err = b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", ChallengeStatusSent, c.ID)
     if err != nil { log.Panic(err) }
 
     options := []dg.SelectMenuOption{
@@ -373,15 +373,15 @@ func (b *botHolder) sendChallenge(challengerID string, challengeeid string, cid 
         },
     }
 
-    winner, loser := m.hometeam, m.awayteam
+    winner, loser := m.HomeTeam, m.AwayTeam
 
-    if c.condition == ChallengeConditionWinnerAway {
-        winner = m.awayteam
-        loser = m.hometeam
+    if c.Condition == ChallengeConditionWinnerAway {
+        winner = m.AwayTeam
+        loser = m.HomeTeam
     }
 
     challenger, _ := b.session.User(challengerID)
-    datetime, _ := time.Parse(DB_TIME_LAYOUT, m.date)
+    datetime, _ := time.Parse(DB_TIME_LAYOUT, m.Date)
 
     msg := fmt.Sprintf("Du har blivit utmanad!\n")
     msg += fmt.Sprintf("**%v** tror att **%v** vinner mot **%v** den **%v** för **%v** poäng.\n\n",
@@ -396,7 +396,7 @@ func (b *botHolder) sendChallenge(challengerID string, challengeeid string, cid 
     })
 }
 
-func (b *botHolder) challAnswer(i *dg.InteractionCreate) {
+func (b *Bot) challAnswer(i *dg.InteractionCreate) {
     values := getValuesOrRespond(b.session, i, UpdateMsg)
     if values == nil { return }
     value := values[0]
@@ -412,22 +412,22 @@ func (b *botHolder) challAnswer(i *dg.InteractionCreate) {
     plusOrMinus := ""
 
     c := getChallenge(b.db, "id=$1", cid)
-    m := getMatch(b.db, "id=$1", c.matchid)
-    challengee := getUser(b.db, strconv.Itoa(c.challengeeid))
-    challengeeUsername, _ := b.session.User(fmt.Sprint(challengee.uid))
-    challenges := *getChallenges(b.db, "challengeeid=$1 AND (status=$2 OR status=$3 OR status=$4 OR status=$5)", challengee.uid, ChallengeStatusUnhandled, ChallengeStatusSent, ChallengeStatusAccepted, ChallengeStatusRequestForfeit)
+    m := getMatch(b.db, "id=$1", c.MatchID)
+    challengee := getUser(b.db, strconv.Itoa(c.ChallengeeID))
+    challengeeUsername, _ := b.session.User(fmt.Sprint(challengee.UserID))
+    challenges := *getChallenges(b.db, "challengeeid=$1 AND (status=$2 OR status=$3 OR status=$4 OR status=$5)", challengee.UserID, ChallengeStatusUnhandled, ChallengeStatusSent, ChallengeStatusAccepted, ChallengeStatusRequestForfeit)
     existingChallenge := getChallenge(b.db, "((challengerid=$1 AND challengeeid=$2) OR " +
                                             "(challengeeid=$3 AND challengerid=$4)) " +
                                             "AND matchid=$5 AND id!=$6 " +
                                             "AND status!=$7 AND status!=$8",
-                                             c.challengerid, challengee.uid,
-                                             c.challengerid, challengee.uid,
-                                             c.matchid, c.id,
+                                             c.ChallengerID, challengee.UserID,
+                                             c.ChallengerID, challengee.UserID,
+                                             c.MatchID, c.ID,
                                              ChallengeStatusDeclined, ChallengeStatusForfeited)
 
     // Security checks
     errors := []CommandError{}
-    if c.status != ChallengeStatusSent {
+    if c.Status != ChallengeStatusSent {
         errors = append(errors, ErrorChallengeHandled)
     }
 
@@ -435,7 +435,7 @@ func (b *botHolder) challAnswer(i *dg.InteractionCreate) {
         errors = append(errors, ErrorMaxChallenges)
     }
 
-    if strconv.Itoa(challengee.uid) != getInteractUID(i) {
+    if strconv.Itoa(challengee.UserID) != getInteractUID(i) {
         errors = append(errors, ErrorNoRights)
     }
 
@@ -444,13 +444,13 @@ func (b *botHolder) challAnswer(i *dg.InteractionCreate) {
         return
     }
 
-    if challengee.points < c.points {
+    if challengee.Points < c.Points {
         msgChallenger += "- Motståndandaren har inte tillräckligt med poäng för att acceptera utmaningen.\n"
         msgChallengee += "- Du har inte tillräckligt med poäng för att acceptera utmaningen.\n"
         answ = "decline"
     }
 
-    if existingChallenge.id != -1 {
+    if existingChallenge.ID != -1 {
         msgChallenger += "- Du har redan en aktiv utmaning med användaren.\n"
         msgChallengee += "- Du har redan en aktiv utmaning med användaren.\n"
         answ = "decline"
@@ -467,21 +467,21 @@ func (b *botHolder) challAnswer(i *dg.InteractionCreate) {
         status = ChallengeStatusAccepted
         msgChallenger += fmt.Sprintf("Din utmaning har blivit accepterad.\n")
         msgChallenger += fmt.Sprintf("**%v** vs **%v** för **%v** poäng mot **%v**",
-                                     m.hometeam, m.awayteam, c.points, challengeeUsername)
+                                     m.HomeTeam, m.AwayTeam, c.Points, challengeeUsername)
         msgChallengee += fmt.Sprintf("Skickar bekräftelse till utmanaren.")
-        userUID = c.challengeeid
+        userUID = c.ChallengeeID
         plusOrMinus = "-"
     } else {
         status = ChallengeStatusDeclined
         msgChallenger += fmt.Sprintf("Din utmaning har blivit nekad.\n")
         msgChallenger += fmt.Sprintf("**%v** vs **%v** för **%v** poäng mot **%v**",
-                                     m.hometeam, m.awayteam, c.points, challengeeUsername)
+                                     m.HomeTeam, m.AwayTeam, c.Points, challengeeUsername)
         msgChallengee += fmt.Sprintf("Du har nekat utmaningen.")
-        userUID = c.challengerid
+        userUID = c.ChallengerID
         plusOrMinus = "+"
     }
 
-    _, err := b.db.Exec("UPDATE users SET points=points " + plusOrMinus + " $1 WHERE uid=$2", c.points, userUID)
+    _, err := b.db.Exec("UPDATE users SET points=points " + plusOrMinus + " $1 WHERE uid=$2", c.Points, userUID)
     if err != nil { log.Panic(err) }
 
     _, err = b.db.Exec("UPDATE challenges SET status=$1 WHERE id=$2", status, cid)
@@ -489,6 +489,6 @@ func (b *botHolder) challAnswer(i *dg.InteractionCreate) {
 
     addCompInteractionResponse(b.session, i, UpdateMsg, msgChallengee, []dg.MessageComponent{})
 
-    dmcid, _ := b.session.UserChannelCreate(fmt.Sprintf("%v", c.challengerid))
+    dmcid, _ := b.session.UserChannelCreate(fmt.Sprintf("%v", c.ChallengerID))
     b.session.ChannelMessageSend(dmcid.ID, msgChallenger)
 }

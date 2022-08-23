@@ -8,7 +8,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func (b *botHolder) checkUnhandledBets(interactive bool) {
+func (b *Bot) checkUnhandledBets(interactive bool) {
 	today := time.Now().Format(DB_TIME_LAYOUT)
 
 	log.Printf("Checking unhandled bets...")
@@ -20,11 +20,11 @@ func (b *botHolder) checkUnhandledBets(interactive bool) {
     defer rows.Close()
 	if err != nil { log.Panic(err) }
 
-    bets := make(map[bet]match)
+    bets := make(map[Bet]Match)
 	for rows.Next() {
-        var b bet
-        var m match
-        rows.Scan(&b.id, &b.uid, &b.matchid, &b.homescore, &b.awayscore, &b.status, &m.homescore, &m.awayscore)
+        var b Bet
+        var m Match
+        rows.Scan(&b.ID, &b.UserID, &b.MatchID, &b.HomeScore, &b.AwayScore, &b.Status, &m.HomeScore, &m.AwayScore)
         bets[b] = m
 	}
 
@@ -39,8 +39,8 @@ func (b *botHolder) checkUnhandledBets(interactive bool) {
 
 		// Handle bets for each match individually
 		for bet, m := range bets {
-            homeDiff := math.Abs(float64(bet.homescore - m.homescore))
-            awayDiff := math.Abs(float64(bet.awayscore - m.awayscore))
+            homeDiff := math.Abs(float64(bet.HomeScore - m.HomeScore))
+            awayDiff := math.Abs(float64(bet.AwayScore - m.AwayScore))
 
             if homeDiff == 0 && awayDiff == 0 {
                 b.addPoints(bet, 3, BetStatusWon, interactive)
@@ -59,16 +59,16 @@ func (b *botHolder) checkUnhandledBets(interactive bool) {
 	}
 }
 
-func (b *botHolder) addPoints(bet bet, points int, status BetStatus, interactive bool) {
-    log.Printf("Awarding %v point to %v", points, bet.uid)
+func (b *Bot) addPoints(bet Bet, points int, status BetStatus, interactive bool) {
+    log.Printf("Awarding %v point to %v", points, bet.UserID)
 
     if interactive {
-        b.messageOwner(fmt.Sprintf("Awarding %v points to %v", points, bet.uid))
+        b.messageOwner(fmt.Sprintf("Awarding %v points to %v", points, bet.UserID))
     }
 
-    _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", points, bet.uid)
+    _, err := b.db.Exec("UPDATE users SET points=points+$1 WHERE uid=$2", points, bet.UserID)
     if err != nil { log.Panic(err) }
 
-	_, err = b.db.Exec("UPDATE bets SET status=$1 WHERE id=$2", status, bet.id)
+	_, err = b.db.Exec("UPDATE bets SET status=$1 WHERE id=$2", status, bet.ID)
     if err != nil { log.Panic(err) }
 }

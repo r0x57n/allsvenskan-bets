@@ -55,15 +55,15 @@ func main() {
     config.AddDriver(yaml.Driver)
     if err := config.LoadFiles(*CONFIG_PATH); err != nil { panic(err) }
 
-    dbinfo := dbInfo{
-        host: config.String("dbHost"),
-        user: config.String("dbUser"),
-        password: config.String("dbPass"),
-        name: config.String("dbName"),
-        port: config.Int("dbPort"),
+    dbinfo := InfoDB{
+        Host: config.String("dbHost"),
+        User: config.String("dbUser"),
+        Password: config.String("dbPass"),
+        Name: config.String("dbName"),
+        Port: config.Int("dbPort"),
     }
 
-    bot := &botHolder{
+    bot := &Bot{
         token: config.String("botToken"),
         appID: config.String("appID"),
         owner: config.String("owner"),
