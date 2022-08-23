@@ -12,6 +12,13 @@ func (b *Bot) matchCommand(i *dg.InteractionCreate) {
     cmdOptions := i.Interaction.ApplicationCommandData().Options
     if len(cmdOptions) != 0 {
         round = int(cmdOptions[0].IntValue())
+
+        if round == 0 {
+            round = getCurrentRound(b.db)
+        } else if round < 0 || round > 30 {
+            addInteractionResponse(b.session, i, NewMsg, "Välj en omgång mellan 0-30.")
+            return
+        }
     }
 
     rows, err := b.db.Query("SELECT m.id, m.hometeam, m.awayteam, m.date, m.homescore, m.awayscore, m.finished " +

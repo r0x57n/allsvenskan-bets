@@ -153,7 +153,7 @@ func (b *Bot) addCommands() {
                 {
                     Type: dg.ApplicationCommandOptionInteger,
                     Name: "omgång",
-                    Description: "vilken omgång att sammanfatta (0 == nuvarande)",
+                    Description: "vilken omgång att sammanfatta (0 == senaste)",
                     Required: true,
                 },
             },

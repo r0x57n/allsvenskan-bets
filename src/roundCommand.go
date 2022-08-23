@@ -18,12 +18,12 @@ func (b *Bot) roundCommand(i *dg.InteractionCreate) {
     round, _ := strconv.Atoi(fmt.Sprint(options[0].Value))
 
     if round < 0 || round > 30 {
-        addInteractionResponse(b.session, i, NewMsg, "Välj en runda mellan 0-30.")
+        addInteractionResponse(b.session, i, NewMsg, "Välj en omgång mellan 0-30.")
         return
     }
 
     if round == 0 {
-        round = getCurrentRound(b.db)
+        round = getCurrentRound(b.db) - 1
     }
 
     var jsonD []byte
