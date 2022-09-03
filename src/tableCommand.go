@@ -16,14 +16,15 @@ func (b *Bot) tableCommand(i *dg.InteractionCreate) {
 
     tableString := &strings.Builder{}
     table := tablewriter.NewWriter(tableString)
-    table.SetHeader([]string{"#", "Namn (v/o/f)", "M", "Mål/Insl.", "Poäng"})
+    table.SetHeader([]string{"#", "Namn", "v/o/f", "M", "Mål/Insl.", "Poäng"})
 
     for rows.Next() {
         var e TableEntry
         rows.Scan(&e.Placement, &e.Teamname, &e.Matches, &e.Wins, &e.Ties, &e.Losses, &e.Plusminus, &e.Points)
         table.Append([]string{
             fmt.Sprint(e.Placement),
-            fmt.Sprintf("%v (%v/%v/%v)", e.Teamname, e.Wins, e.Ties, e.Losses),
+            fmt.Sprintf("%v", e.Teamname),
+            fmt.Sprintf("%v/%v/%v", e.Wins, e.Ties, e.Losses),
             fmt.Sprint(e.Matches),
             e.Plusminus,
             fmt.Sprint(e.Points),
