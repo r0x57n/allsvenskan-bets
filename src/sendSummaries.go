@@ -99,11 +99,15 @@ func (b *Bot) sendRoundSummary() {
 
     fields := []*dg.MessageEmbedField {
         {
-            Name: "Topp 5",
+            Name: "Flest korrekta gissningar",
             Value: roundData.TopFive,
         },
         {
-            Name: "Bott 5",
+            Name: "Flest nära gissningar",
+            Value: roundData.CloseFive,
+        },
+        {
+            Name: "Flest felaktiga gissningar",
             Value: roundData.BotFive,
         },
         {

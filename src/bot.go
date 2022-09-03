@@ -203,33 +203,27 @@ func (b *Bot) getMatchSummary(mid string) *MatchSummary {
 }
 
 func (b *Bot) createRoundSummary(round string) {
-    matches := *getMatches(b.db, "round=$1", round)
+    totalMatches, totalBets, totalWon, totalLost, totalClose := 0, 0, 0, 0, 0
 
-    var allBets []Bet
-    userWins := make(map[string]int)
-    userLost := make(map[string]int)
-    totalWon, totalLost := 0, 0
+    // number of matches
+    err := b.db.QueryRow("SELECT count(id) FROM matches WHERE round=$1", round).Scan(&totalMatches)
+    if err != nil { log.Panic(err) }
 
-    // Fetch info for all played matches
-    for _, m := range matches {
-        matchBets := *getBets(b.db, "matchid=$1", m.ID)
+    // number of bets
+    err = b.db.QueryRow("SELECT count(id) FROM bets WHERE round=$1", round).Scan(&totalBets)
+    if err != nil { log.Panic(err) }
 
-        for _, bet := range matchBets {
-            allBets = append(allBets, bet)
+    // total won
+    err = b.db.QueryRow("SELECT count(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusWon).Scan(&totalWon)
+    if err != nil { log.Panic(err) }
 
-            if bet.Status == BetStatusWon {
-                totalWon++
+    // total close
+    err = b.db.QueryRow("SELECT count(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusAlmostWon).Scan(&totalClose)
+    if err != nil { log.Panic(err) }
 
-                user, _ := b.session.User(strconv.Itoa(bet.UserID))
-                userWins[user.Username]++
-            } else if bet.Status == BetStatusLost {
-                totalLost++
-
-                user, _ := b.session.User(strconv.Itoa(bet.UserID))
-                userLost[user.Username]++
-            }
-        }
-    }
+    // total lost
+    err = b.db.QueryRow("SELECT count(id) FROM bets WHERE round=$1 AND status=$2", round, BetStatusLost).Scan(&totalLost)
+    if err != nil { log.Panic(err) }
 
     // Top 5 list
     rows, err := b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 5", round, BetStatusWon)
@@ -265,14 +259,33 @@ func (b *Bot) createRoundSummary(round string) {
         placement++
     }
 
+    // Close but no cigarr list
+    rows, err = b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 5", round, BetStatusAlmostWon)
+    if err != nil { log.Panic(err) }
+    defer rows.Close()
+
+    placement = 1
+    closeFive := "-"
+    for rows.Next() {
+        uid, count := 0, 0
+        rows.Scan(&uid, &count)
+        user, _ := b.session.User(strconv.Itoa(uid))
+
+        if closeFive == "-" { closeFive = "" }
+        closeFive += fmt.Sprintf("#%v - %v med **%v** nära gissningar\n", placement, user, count)
+        placement++
+    }
+
     roundJson := Round{
         Num: round,
-        NumMatches: len(matches),
-        NumBets: len(allBets),
+        NumMatches: totalMatches,
+        NumBets: totalBets,
         NumWins: totalWon,
         NumLoss: totalLost,
+        NumClose: totalClose,
         TopFive: topFive,
         BotFive: bottomFive,
+        CloseFive: closeFive,
     }
 
     json, _ := json.Marshal(roundJson)

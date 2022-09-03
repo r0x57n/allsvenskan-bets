@@ -49,14 +49,16 @@ func (b *Bot) roundCommand(i *dg.InteractionCreate) {
 
     fields := []*dg.MessageEmbedField {
         {
-            Name: "Topp 5",
+            Name: "Flest korrekta gissningar",
             Value: roundData.TopFive,
-            Inline: false,
         },
         {
-            Name: "Bott 5",
+            Name: "Flest nära gissningar",
+            Value: roundData.CloseFive,
+        },
+        {
+            Name: "Flest felaktiga gissningar",
             Value: roundData.BotFive,
-            Inline: false,
         },
     }
 

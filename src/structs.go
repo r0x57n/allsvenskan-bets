@@ -78,8 +78,10 @@ type Round struct {
     NumBets int `json:"numBets"`
     NumWins int `json:"numWins"`
     NumLoss int `json:"numLoss"`
+    NumClose int `json:"numClose"`
     TopFive string `json:"topFive"`
     BotFive string `json:"botFive"`
+    CloseFive string `json:"closeFive"`
 }
 
 type User struct {
