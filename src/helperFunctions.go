@@ -276,7 +276,7 @@ func getCurrentMatchesAsOptions(db *sql.DB, addToValue ...string) *[]dg.SelectMe
 
     round := getCurrentRound(db)
 	today := time.Now().Format(DB_TIME_LAYOUT)
-    matches := *getMatches(db, "round=$1 AND date>=$2", round, today)
+    matches := *getMatches(db, "round=$1 AND date>=$2 ORDER BY date", round, today)
 
 	if len(matches) == 0 {
         return &options

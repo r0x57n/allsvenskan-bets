@@ -16,7 +16,7 @@ import (
 */
 
 const (
-    VERSION                 = "1.6.0" // major.minor.patch
+    VERSION                 = "1.6.1" // major.minor.patch
 	DB_TYPE                 = "postgres"
 	DB_TIME_LAYOUT          = time.RFC3339
     MSG_TIME_LAYOUT         = "2006-01-02 kl. 15:04"

@@ -21,7 +21,8 @@ func (b *Bot) guessCommand(i *dg.InteractionCreate) {
 
     // map match id:s to bets so we can easier build strings later
     matchidToBet := make(map[string]Bet)
-    betsRows, err := b.db.Query("SELECT matchid, homescore, awayscore FROM bets WHERE status=$1 AND uid=$2", BetStatusUnhandled, uid)
+    betsRows, err := b.db.Query("SELECT matchid, homescore, awayscore FROM bets " +
+                                "WHERE status=$1 AND uid=$2 ", BetStatusUnhandled, uid)
     if err != nil { log.Panic(err) }
 
     for betsRows.Next() {
