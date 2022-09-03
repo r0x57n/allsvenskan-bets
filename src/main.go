@@ -1,11 +1,11 @@
 package main
 
 import (
-	"log"
-	"time"
-    "flag"
 	"os"
 	"os/signal"
+	"log"
+    "flag"
+    "time"
 	"github.com/robfig/cron/v3"
     "github.com/gookit/config/v2"
     "github.com/gookit/config/v2/yaml"
