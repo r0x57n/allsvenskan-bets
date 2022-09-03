@@ -18,7 +18,7 @@ func (b *Bot) summariseCommand(i *dg.InteractionCreate) {
     title := ""
 
     options := []dg.SelectMenuOption{}
-    if iOptions[0].Value == "0" { // omgång
+    if iOptions[0].Value == "0" { // summarise round
         if len(iOptions) == 2 {
             round := fmt.Sprint(iOptions[1].Value)
 
@@ -34,7 +34,7 @@ func (b *Bot) summariseCommand(i *dg.InteractionCreate) {
             addInteractionResponse(b.session, i, NewMsg, "välj en omgång å")
             return
         }
-    } else { // match
+    } else { // summarise match
         round := fmt.Sprint(getCurrentRound(b.db))
 
         if len(iOptions) == 2 {
@@ -98,24 +98,11 @@ func (b *Bot) summaryRoundSend(round string) {
     msg += fmt.Sprintf("Av dessa var **%v** vinster och **%v** förluster.",
                        roundData.NumWins, roundData.NumLoss)
 
-    fields := []*dg.MessageEmbedField {
-        {
-            Name: "Flest korrekta gissningar",
-            Value: roundData.TopFive,
-        },
-        {
-            Name: "Flest nära gissningar",
-            Value: roundData.CloseFive,
-        },
-        {
-            Name: "Flest felaktiga gissningar",
-            Value: roundData.BotFive,
-        },
-        {
+    fields := b.getRoundEmbedFields(roundData)
+    fields = append(fields, &dg.MessageEmbedField{
             Name: "-",
             Value: "*använd /hjälp kommandot för att lära dig tippa*",
-        },
-    }
+    })
 
     channelID := "-1"
     channels, _ := b.session.GuildChannels(b.allsvenskanGuildID)

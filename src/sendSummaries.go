@@ -97,24 +97,11 @@ func (b *Bot) sendRoundSummary() {
     msg += fmt.Sprintf("Av dessa var **%v** vinster och **%v** förluster.",
                        roundData.NumWins, roundData.NumLoss)
 
-    fields := []*dg.MessageEmbedField {
-        {
-            Name: "Flest korrekta gissningar",
-            Value: roundData.TopFive,
-        },
-        {
-            Name: "Flest nära gissningar",
-            Value: roundData.CloseFive,
-        },
-        {
-            Name: "Flest felaktiga gissningar",
-            Value: roundData.BotFive,
-        },
-        {
+    fields := b.getRoundEmbedFields(roundData)
+    fields = append(fields, &dg.MessageEmbedField{
             Name: "-",
             Value: "*använd /hjälp kommandot för att lära dig tippa*",
-        },
-    }
+    })
 
     channelID := "-1"
     channels, _ := b.session.GuildChannels(b.allsvenskanGuildID)

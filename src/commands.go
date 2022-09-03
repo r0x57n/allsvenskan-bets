@@ -30,6 +30,7 @@ const (
     UpdateCommand       = "update"
     SummariseCommand    = "sammanfatta"
     MatchCommand        = "match"
+    TableCommand        = "tabell"
 )
 
 type CommandCategory string
@@ -233,6 +234,11 @@ func (b *Bot) addCommands() {
                 },
             },
         },
+        {
+            Name: TableCommand,
+            Description: "visar tabellen för allsvenskan",
+            Category: CommandCategoryListing,
+        },
     }
 
     // Link functions to commands
@@ -249,6 +255,7 @@ func (b *Bot) addCommands() {
         InfoCommand:        func(s *dg.Session, i *dg.InteractionCreate) {    b.infoCommand(i)        },
         RoundCommand:       func(s *dg.Session, i *dg.InteractionCreate) {    b.roundCommand(i)       },
         MatchCommand:       func(s *dg.Session, i *dg.InteractionCreate) {    b.matchCommand(i)       },
+        TableCommand:       func(s *dg.Session, i *dg.InteractionCreate) {    b.tableCommand(i)       },
 
         // Admin commands
         AddCommand:         func(s *dg.Session, i *dg.InteractionCreate) {    b.addCommand(i)         },

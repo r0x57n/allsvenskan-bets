@@ -131,12 +131,12 @@ func (b *Bot) getMatchSummary(mid string) *MatchSummary {
         }
 
         if m.Finished {
-            won := bet.HomeScore == m.HomeScore && bet.AwayScore == m.AwayScore
-
-            if won {
+            if bet.Status == BetStatusWon {
                 msgBets += fmt.Sprintf("**%v gissade på %v - %v**\n", username, bet.HomeScore, bet.AwayScore)
-            } else {
+            } else if bet.Status == BetStatusAlmostWon {
                 msgBets += fmt.Sprintf("%v gissade på %v - %v\n", username, bet.HomeScore, bet.AwayScore)
+            } else {
+                msgBets += fmt.Sprintf("*%v gissade på %v - %v*\n", username, bet.HomeScore, bet.AwayScore)
             }
         } else {
             msgBets += fmt.Sprintf("%v gissar på %v - %v\n", username, bet.HomeScore, bet.AwayScore)
@@ -292,4 +292,21 @@ func (b *Bot) createRoundSummary(round string) {
 
     _, err = b.db.Exec("INSERT INTO summaries(data, round, year) VALUES ($1, $2, $3)", json, round, time.Now().Year())
     if err != nil { log.Panic(err) }
+}
+
+func (b *Bot) getRoundEmbedFields(round Round) []*dg.MessageEmbedField {
+    return []*dg.MessageEmbedField {
+        {
+            Name: "Flest korrekta gissningar",
+            Value: round.TopFive,
+        },
+        {
+            Name: "Flest nära gissningar",
+            Value: round.CloseFive,
+        },
+        {
+            Name: "Flest felaktiga gissningar",
+            Value: round.BotFive,
+        },
+    }
 }

@@ -91,3 +91,14 @@ type User struct {
     Viewable bool
     Interactable bool
 }
+
+type TableEntry struct {
+    Placement int
+    Teamname string
+    Matches int
+    Wins int
+    Ties int
+    Losses int
+    Plusminus string
+    Points int
+}
