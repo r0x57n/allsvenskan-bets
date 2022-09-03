@@ -231,29 +231,38 @@ func (b *Bot) createRoundSummary(round string) {
         }
     }
 
-    rows, err := b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 10", round, BetStatusWon)
+    // Top 5 list
+    rows, err := b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 5", round, BetStatusWon)
     if err != nil { log.Panic(err) }
     defer rows.Close()
 
-    topFive := make(map[string]int)
+    placement := 1
+    topFive := "-"
     for rows.Next() {
         uid, count := 0, 0
         rows.Scan(&uid, &count)
         user, _ := b.session.User(strconv.Itoa(uid))
-        topFive[user.Username] = count
+
+        if topFive == "-" { topFive = "" }
+        topFive += fmt.Sprintf("#%v - %v med **%v** vinster\n", placement, user, count)
+        placement++
     }
 
     // Bottom 5 list
-    rows, err = b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 10", round, BetStatusLost)
+    rows, err = b.db.Query("SELECT uid, count(uid) AS c FROM bets WHERE round=$1 AND status=$2 GROUP BY uid ORDER BY c DESC limit 5", round, BetStatusLost)
     if err != nil { log.Panic(err) }
     defer rows.Close()
 
-    bottomFive := make(map[string]int)
+    placement = 1
+    bottomFive := "-"
     for rows.Next() {
         uid, count := 0, 0
         rows.Scan(&uid, &count)
         user, _ := b.session.User(strconv.Itoa(uid))
-        bottomFive[user.Username] = count
+
+        if bottomFive == "-" { bottomFive = "" }
+        bottomFive += fmt.Sprintf("#%v - %v med **%v** förluster\n", placement, user, count)
+        placement++
     }
 
     roundJson := Round{

@@ -40,28 +40,6 @@ func (b *Bot) roundCommand(i *dg.InteractionCreate) {
     var roundData Round
     json.Unmarshal(jsonD, &roundData)
 
-    topFive := ""
-    placement := 1
-    for user, wins := range roundData.TopFive {
-        topFive += fmt.Sprintf("#%v - %v med **%v** vinster\n", placement, user, wins)
-        placement++
-    }
-
-    bottomFive := ""
-    placement = 1
-    for user, losses := range roundData.BotFive {
-        bottomFive += fmt.Sprintf("#%v - %v med **%v** förluster\n", placement, user, losses)
-        placement++
-    }
-
-    if topFive == "" {
-        topFive = "-"
-    }
-
-    if bottomFive == "" {
-        bottomFive = "-"
-    }
-
     title := fmt.Sprintf("Sammanfattning av omgång %v", roundData.Num)
 
     msg := fmt.Sprintf("**%v** matcher spelades och **%v** vadslagningar las.\n",
@@ -72,12 +50,12 @@ func (b *Bot) roundCommand(i *dg.InteractionCreate) {
     fields := []*dg.MessageEmbedField {
         {
             Name: "Topp 5",
-            Value: topFive,
+            Value: roundData.TopFive,
             Inline: false,
         },
         {
             Name: "Bott 5",
-            Value: bottomFive,
+            Value: roundData.BotFive,
             Inline: false,
         },
     }

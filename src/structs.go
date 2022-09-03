@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/robfig/cron/v3"
 	"database/sql"
+	"github.com/robfig/cron/v3"
 	dg "github.com/bwmarrin/discordgo"
 )
 
@@ -78,8 +78,8 @@ type Round struct {
     NumBets int `json:"numBets"`
     NumWins int `json:"numWins"`
     NumLoss int `json:"numLoss"`
-    TopFive map[string]int `json:"topFive"`
-    BotFive map[string]int `json:"botFive"`
+    TopFive string `json:"topFive"`
+    BotFive string `json:"botFive"`
 }
 
 type User struct {
