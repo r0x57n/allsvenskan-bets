@@ -95,8 +95,8 @@ func (b *Bot) summaryRoundSend(round string) {
 
     msg := fmt.Sprintf("**%v** matcher spelades och **%v** vadslagningar las.\n",
                        roundData.NumMatches, roundData.NumBets)
-    msg += fmt.Sprintf("Av dessa var **%v** vinster och **%v** förluster.",
-                       roundData.NumWins, roundData.NumLoss)
+    msg += fmt.Sprintf("Av dessa var det **%v** korrekta, **%v** inkorrekta och **%v** nära gissningar.",
+                       roundData.NumWins, roundData.NumLoss, roundData.NumClose)
 
     fields := b.getRoundEmbedFields(roundData)
     fields = append(fields, &dg.MessageEmbedField{
