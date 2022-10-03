@@ -1,17 +1,10 @@
-* allsvenskanBet
+* allsvenskanBets
+A Discord bot created for the Swedish football league [[https://en.wikipedia.org/wiki/Allsvenskan][Allsvenskan]]. It primarily handles bets/challenges on/between matches/users on a guild (server). It's not built to handle multiple guilds currently. The only known running version exists on the officially unofficial Allsvenskan discord. It's built upon the [[https://github.com/bwmarrin/discordgo][DiscordGo]] package.
+** Configuration
+A configuration file named config.yml is expected to exist in the top-level of the bot. When the bot is added to a server it has to have the following scopes: bot, application.commands. And the following permissions: Send messages.
 
-A Discord bot created for the Swedish football league [[https://en.wikipedia.org/wiki/Allsvenskan][Allsvenskan]]. It primarily handles bets/challenges on/between matches/users on a guild (server). It's not built to handle multiple guilds currently. The only known running version exists on the officially unofficial Allsvenskan discord.
 
-** Permissions
-Scopes: bot, applications.commands
-Bot permissions: Send Messages
-
-** Layout
-Every command has its own file, e.x. for the /refresh command, see ./src/refreshCommand.go. The bot connects to a postgres database where everything is stored. A configuration file named config.yml is expected to exist on the top-level of the bot.
-
-** config.yml
-Example config.
-
+Example /config.yml/:
 #+NAME: config.yml
 #+BEGIN_SRC
 dbHost: localhost
@@ -25,3 +18,15 @@ owner: 12341234
 guildID: ""
 updaterPath: "../updater/"
 #+END_SRC
+** Code structure
+The entry point is found in *main.go*. The main function basically sets up logging and creates a bot (*bot.go*) which handles mostly everything else. The bot does two things. It executes commands, and it runs jobs periodically. The bot communicates with a postgresql database where everything related to the bot is kept. All structs can be found in *structs.go* and all enums inside of *enums.go* (except for command specific things, which are kept in *commands.go*). There are some helper functions inside of *helperFunctions.go* which are used to try and reduce the overall size of the bot. However, after the bot struct was made there have crept in a few inside of *bot.go* as well.
+*** Periodical jobs
+The periodical jobs are run with the help of the [[https://github.com/robfig/cron][cron]] package for Go. They're setup inside of the main function and handles two things. Fetching new information about the league status (played matches et.c.) and checking bets and related things. When fetching new information it runs the function found in *updateMatches.go*. The actual updater is not included in the bot (hint, there's no open API). When it checks bets it runs checkStuff(bool) found in *bot.go*. Basically it checks bets, challenges and sends summaries to a specific channel inside the discord guild.
+*** Commands
+All commands available can be found in *commands.go*. Each command has an entry point which can be found in the commandHandlers map (same file). Most interesting commands doesn't have just one state. Thus a command may have multiple component handlers (found below commandHandlers). These can be thought of as different states of the command being executed. A nicety of all this is that the states are saved on Discord's side, the downsides are plenty though. More on that later.
+
+The functions related to a command can be found in the file called *<commandName>Command.go*, e.g. for the challenge command it'd be *challengeCommand.go*. The entry point is always at the top of the file, the next state is usually the next function and so on.
+**** More on the structure of commands
+To start of, I don't think commands are supposed to be built as chained messages. There's no /legit/ way to pass data between two states other than having it saved in something like a dropdown's value. I haven't deared to try and keep the states locally. This is why dropdown's are used a lot throughout the commands. The way I handle dropdowns is to do things when a dropdowns value changes. This is why commands became state machines, since for few things one dropdown was enough. If a dropdown is used to choose something which the next step depends on, we need two messages, two states.
+
+Another problem I found was that if I'd try to keep the commands as [[https://api.slack.com/interactivity/slash-commands][slash commands]] there'd be a problem with having dynamic options in the command. The options are saved within the command on the discord side of things. Instead I ended up with the dropdowns (which may have a maximum of 25 values, hence why a match might only end with 24 goals when making a bet). This makes the commands a bit more user friendly, but a lot uglier in code.
