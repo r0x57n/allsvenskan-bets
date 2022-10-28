@@ -71,6 +71,27 @@ func main() {
         updaterPath: config.String("updaterPath"),
     }
 
+    // Prefer environmentall variables
+    if os.Getenv("APP_ID") != "" {
+        bot.appID = os.Getenv("APP_ID")
+    }
+
+    if os.Getenv("BOT_TOKEN") != "" {
+        bot.token = os.Getenv("BOT_TOKEN")
+    }
+
+    if os.Getenv("DB_NAME") != "" {
+        dbinfo.Name = os.Getenv("DB_NAME")
+    }
+
+    if os.Getenv("DB_USER") != "" {
+        dbinfo.User = os.Getenv("DB_USER")
+    }
+
+    if os.Getenv("DB_PASS") != "" {
+        dbinfo.Password = os.Getenv("DB_PASS")
+    }
+
 	// Initialize and start the bot
 	bot.Init()
     bot.Start()
