@@ -55,6 +55,7 @@ func main() {
     config.AddDriver(yaml.Driver)
     if err := config.LoadFiles(*CONFIG_PATH); err != nil { panic(err) }
 
+    // Load DB info
     dbinfo := InfoDB{
         Host: config.String("dbHost"),
         User: config.String("dbUser"),
@@ -63,21 +64,8 @@ func main() {
         Port: config.Int("dbPort"),
     }
 
-    bot := &Bot{
-        token: config.String("botToken"),
-        appID: config.String("appID"),
-        owner: config.String("owner"),
-        db: connectDB(dbinfo),
-        updaterPath: config.String("updaterPath"),
-    }
-
-    // Prefer environmentall variables
-    if os.Getenv("APP_ID") != "" {
-        bot.appID = os.Getenv("APP_ID")
-    }
-
-    if os.Getenv("BOT_TOKEN") != "" {
-        bot.token = os.Getenv("BOT_TOKEN")
+    if os.Getenv("DB_HOST") != "" {
+        dbinfo.Host = os.Getenv("DB_HOST")
     }
 
     if os.Getenv("DB_NAME") != "" {
@@ -90,6 +78,23 @@ func main() {
 
     if os.Getenv("DB_PASS") != "" {
         dbinfo.Password = os.Getenv("DB_PASS")
+    }
+
+    // Set bot values
+    bot := &Bot{
+        token: config.String("botToken"),
+        appID: config.String("appID"),
+        owner: config.String("owner"),
+        db: connectDB(dbinfo),
+        updaterPath: config.String("updaterPath"),
+    }
+
+    if os.Getenv("APP_ID") != "" {
+        bot.appID = os.Getenv("APP_ID")
+    }
+
+    if os.Getenv("BOT_TOKEN") != "" {
+        bot.token = os.Getenv("BOT_TOKEN")
     }
 
 	// Initialize and start the bot
