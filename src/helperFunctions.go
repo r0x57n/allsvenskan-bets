@@ -54,13 +54,14 @@ func matchHasBegun(s *dg.Session, i *dg.InteractionCreate, m Match) bool {
 */
 
 func connectDB(i InfoDB) *sql.DB {
-    fmt.Printf("%v %v %v %v %v", i.Host, i.Port, i.User, i.Password, i.Name)
     dbInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
                         i.Host, i.Port, i.User, i.Password, i.Name)
     db, err := sql.Open(DB_TYPE, dbInfo)
     if err != nil {
-        log.Fatalf("Couldn't connect to database: %v", err)
+        log.Panicf("Couldn't connect to database: %v", err)
     }
+
+    log.Printf("Connected to DB (%v): %v:%v, as %v", i.Name, i.Host, i.Port, i.User)
 
     return db
 }
